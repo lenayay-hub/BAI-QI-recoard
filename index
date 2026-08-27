@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ICC平燙機紀錄系統</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased font-sans">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const Icon = ({ name, size = 20, className = '' }) => {
+      const icons = {
+        Clock: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+        Save: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+        Trash2: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
+        FileSpreadsheet: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>,
+        PlusCircle: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
+        Edit: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+        X: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+        ImageIcon: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
+        Loader2: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>,
+        CalendarDays: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>,
+        Cloud: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>,
+        Settings: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+        CloudOff: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+        RefreshCw: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
+        PenTool: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+      };
+      return <div className={`inline-block ${className}`}>{icons[name]}</div>;
+    };
+
+    const getLocalISODate = (dateObj = new Date()) => {
+      const yyyy = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(dateObj.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const formatDateForDisplay = (isoString) => {
+      if (!isoString) return '';
+      const parts = isoString.split('-');
+      if (parts.length !== 3) return isoString;
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      const dateObj = new Date(isoString);
+      const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+      return `${month}/${day}(週${dayOfWeek})`;
+    };
+
+    const getCurrentTimeString = () => {
+      const now = new Date();
+      return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    };
+
+    const SignaturePad = ({ onSave, onCancel, initialSignature }) => {
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+
+        // 【終極解法 1】延遲初始化，等 Modal 視窗排版完全展開後，再抓取尺寸
+        const timer = setTimeout(() => {
+          const rect = canvas.getBoundingClientRect();
+          const ratio = window.devicePixelRatio || 1;
+          
+          // 設定 Canvas 內部真實像素
+          canvas.width = rect.width * ratio;
+          canvas.height = rect.height * ratio;
+          
+          // 填滿白底
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // 設定筆觸 (隨螢幕解析度調整粗細，避免變太細或太粗)
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 3 * ratio; 
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+
+          if (initialSignature) {
+             const img = new window.Image();
+             img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+             };
+             img.src = initialSignature;
+          }
+        }, 150); // 給予 150ms 讓畫面完整撐開
+
+        const getPos = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          // 【終極解法 2】絕對座標映射：計算 CSS 顯示尺寸與 Canvas 內部像素的比例
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          
+          // 支援 Touch 與 Pointer
+          let clientX = e.clientX;
+          let clientY = e.clientY;
+          if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+          }
+
+          // 不管 CSS 怎麼變形，滑鼠點哪裡，畫筆就落在哪裡！
+          return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+          };
+        };
+
+        const startDrawing = (e) => {
+          if(e.cancelable) e.preventDefault(); 
+          isDrawing = true;
+          const pos = getPos(e);
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+        };
+
+        const draw = (e) => {
+          if(e.cancelable) e.preventDefault();
+          if (!isDrawing) return;
+          const pos = getPos(e);
+          ctx.lineTo(pos.x, pos.y);
+          ctx.stroke();
+        };
+
+        const stopDrawing = (e) => {
+          if(e.cancelable) e.preventDefault();
+          isDrawing = false;
+        };
+
+        // 事件監聽 (雙重保險支援所有設備)
+        canvas.addEventListener('pointerdown', startDrawing, { passive: false });
+        canvas.addEventListener('pointermove', draw, { passive: false });
+        canvas.addEventListener('pointerup', stopDrawing, { passive: false });
+        canvas.addEventListener('pointercancel', stopDrawing, { passive: false });
+        canvas.addEventListener('pointerout', stopDrawing, { passive: false });
+
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', draw, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing, { passive: false });
+
+        return () => {
+          clearTimeout(timer);
+          canvas.removeEventListener('pointerdown', startDrawing);
+          canvas.removeEventListener('pointermove', draw);
+          canvas.removeEventListener('pointerup', stopDrawing);
+          canvas.removeEventListener('pointercancel', stopDrawing);
+          canvas.removeEventListener('pointerout', stopDrawing);
+
+          canvas.removeEventListener('touchstart', startDrawing);
+          canvas.removeEventListener('touchmove', draw);
+          canvas.removeEventListener('touchend', stopDrawing);
+        };
+      }, [initialSignature]);
+
+      const handleClear = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height); // 使用真正的畫素清除
+      };
+
+      const handleSave = () => {
+        const canvas = canvasRef.current;
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.5); 
+        onSave(dataUrl);
+      };
+
+      return (
+        <div className="fixed inset-0 bg-slate-900/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col h-[60vh] max-h-[500px]">
+             <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                   <Icon name="PenTool" /> 員工簽名板 (可多人簽名)
+                </h3>
+                <button onClick={onCancel} className="text-slate-400 hover:text-slate-600">
+                   <Icon name="X" size={24} />
+                </button>
+             </div>
+
+             <div className="flex-1 bg-slate-200 relative p-2 flex flex-col min-h-0">
+                <canvas 
+                   ref={canvasRef}
+                   style={{ touchAction: 'none' }} 
+                   className="w-full h-full block bg-white rounded-lg shadow-inner cursor-crosshair touch-none"
+                />
+                <div className="absolute top-6 left-6 text-slate-300 pointer-events-none text-xl font-bold opacity-30 select-none">
+                   請在此處簽名
+                </div>
+             </div>
+
+             <div className="p-4 flex gap-3 bg-white border-t">
+                <button 
+                  onClick={handleClear}
+                  className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  重簽 (清除)
+                </button>
+                <button 
+                  onClick={handleSave}
+                  className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  完成簽名
+                </button>
+             </div>
+          </div>
+        </div>
+      );
+    };
+
+    function App() {
+      const tableRef = useRef(null);
+
+      // ★ 強制將您的專屬 Google 試算表網址寫死在系統中
+      const MY_GAS_URL = "https://script.google.com/macros/s/AKfycbw3OHLQlukE2_ZN1Xd6Uukp3_eVgXm_3a3lfUxCkMPGlS1l2udBAqU-fvs79tOe6aDI/exec";
+
+      const [appConfig, setAppConfig] = useState(() => {
+        try {
+          const saved = localStorage.getItem('machineAppConfig');
+          let config = saved ? JSON.parse(saved) : { mode: 'api', apiUrl: MY_GAS_URL };
+          if (config.apiUrl !== MY_GAS_URL || config.mode !== 'api') {
+            config = { mode: 'api', apiUrl: MY_GAS_URL };
+          }
+          return config;
+        } catch (e) {
+          return { mode: 'api', apiUrl: MY_GAS_URL };
+        }
+      });
+
+      const [showSettings, setShowSettings] = useState(false);
+      const [tempUrl, setTempUrl] = useState(appConfig.apiUrl);
+
+      const [records, setRecords] = useState([]);
+      const [isFetching, setIsFetching] = useState(false);
+      const [isSyncing, setIsSyncing] = useState(false);
+      const [isGenerating, setIsGenerating] = useState(false);
+      const [toastMessage, setToastMessage] = useState('');
+
+      const defaultForm = { date: getLocalISODate(), flatQty: '', pillowQty: '', onTime: '', offTime: '' };
+      const [formData, setFormData] = useState(defaultForm);
+      const [signature, setSignature] = useState(null); 
+      const [showSignaturePad, setShowSignaturePad] = useState(false); 
+
+      const [editingId, setEditingId] = useState(null);
+
+      // 建立您的所有機台清單 (可在此隨意增減名稱)
+      const machineList = ['ICC平燙機', '毛巾摺疊機', '一號洗脫烘', '二號洗脫烘', '制服熨燙機'];
+      const [activeMachine, setActiveMachine] = useState(machineList[0]);
+
+      const currentMonthPrefix = getLocalISODate().substring(0, 7);
+      const currentDisplayMonth = new Date().getMonth() + 1;
+
+      useEffect(() => {
+        localStorage.setItem('machineAppConfig', JSON.stringify(appConfig));
+        if (appConfig.mode === 'local') {
+           loadLocalRecords();
+        } else {
+           fetchCloudRecords();
+        }
+      }, [appConfig]);
+
+      const showToast = (msg) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(''), 3000);
+      };
+
+      const loadLocalRecords = () => {
+        try {
+          const saved = localStorage.getItem('machineRecords_local_v2');
+          if (saved) setRecords(JSON.parse(saved));
+          else setRecords([]);
+        } catch (e) {}
+      };
+
+      const saveLocalRecords = (newRecords) => {
+        localStorage.setItem('machineRecords_local_v2', JSON.stringify(newRecords));
+        setRecords(newRecords);
+      };
+
+      const fetchCloudRecords = async () => {
+        if (!appConfig.apiUrl) return;
+        setIsFetching(true);
+        try {
+          const response = await fetch(appConfig.apiUrl, { cache: 'no-store' });
+          if (!response.ok) throw new Error('網路回應錯誤');
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setRecords(data);
+            saveLocalRecords(data); 
+            showToast("已取得最新雲端紀錄");
+          }
+        } catch (error) {
+          console.error("Fetch Error:", error);
+          showToast(`抓取資料失敗，顯示本機快取`);
+          loadLocalRecords(); 
+        } finally {
+          setIsFetching(false);
+        }
+      };
+
+      const sendToCloud = async (action, payload) => {
+        if (!appConfig.apiUrl) return false;
+        try {
+          const bodyData = JSON.stringify({ action: action, ...payload });
+
+          const response = await fetch(appConfig.apiUrl, {
+            method: 'POST',
+            body: bodyData,
+            redirect: 'follow' 
+          });
+
+          if (!response.ok) {
+             throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const textData = await response.text();
+          let responseData;
+          try {
+             responseData = JSON.parse(textData);
+          } catch(e) {
+             throw new Error("伺服器回傳的不是有效的 JSON 格式");
+          }
+
+          if (responseData.status === 'success') {
+             fetchCloudRecords(); 
+             return true;
+          } else {
+             console.error("雲端回報錯誤:", responseData.message);
+             showToast(`背景儲存失敗: ${responseData.message}`);
+             return false;
+          }
+
+        } catch (error) {
+          console.error("Post Error:", error);
+          showToast(`背景傳送失敗，保留於本機`);
+          return false;
+        }
+      };
+
+      const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+      };
+
+      const setTimeNow = (field) => {
+        setFormData(prev => ({ ...prev, [field]: getCurrentTimeString() }));
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!formData.date) {
+          showToast("請選擇日期！");
+          return;
+        }
+
+        const newId = editingId ? editingId : Date.now().toString();
+        // 將選擇的機台名稱 (activeMachine) 一併加入資料中
+        const recordToSave = { ...formData, id: newId, machine: activeMachine, signature: signature };
+        let updatedRecords = [];
+
+        if (editingId) {
+          updatedRecords = records.map(r => r.id === editingId ? recordToSave : r);
+        } else {
+          updatedRecords = [...records, recordToSave];
+        }
+
+        setRecords(updatedRecords);
+        saveLocalRecords(updatedRecords); 
+
+        setEditingId(null);
+        setFormData({ ...defaultForm, date: getLocalISODate() });
+        setSignature(null);
+        showToast("已暫存，背景上傳中...");
+
+        if (appConfig.mode === 'api' && appConfig.apiUrl) {
+           setIsSyncing(true);
+           const action = editingId ? 'update' : 'create';
+
+           sendToCloud(action, { record: recordToSave }).then(success => {
+               if (success) {
+                   showToast("✓ 雲端同步完成");
+               }
+               setIsSyncing(false);
+           });
+        }
+      };
+
+      const handleEdit = (record) => {
+        setFormData({
+          date: record.date || '',
+          flatQty: record.flatQty || '',
+          pillowQty: record.pillowQty || '',
+          onTime: record.onTime || '',
+          offTime: record.offTime || ''
+        });
+        setSignature(record.signature || null);
+        setEditingId(record.id);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+
+      const handleCancelEdit = () => {
+        setFormData({ ...defaultForm, date: getLocalISODate() });
+        setSignature(null);
+        setEditingId(null);
+      };
+
+      const handleDelete = (id) => {
+        if(window.confirm('確定要刪除這筆紀錄嗎？')) {
+          const updatedRecords = records.filter(record => record.id !== id);
+          setRecords(updatedRecords);
+          saveLocalRecords(updatedRecords);
+
+          if (appConfig.mode === 'api' && appConfig.apiUrl) {
+             setIsSyncing(true);
+             sendToCloud('delete', { id: id }).then(success => {
+                if(success) showToast("✓ 雲端已刪除");
+                setIsSyncing(false);
+             });
+          } else {
+            showToast("本機紀錄已刪除");
+          }
+        }
+      };
+
+      const handleShareImage = async () => {
+        if (sortedCurrentMonthRecords.length === 0) {
+          showToast("當月沒有資料可以分享喔"); return;
+        }
+        if (!window.html2canvas) {
+          showToast("截圖模組載入中，請稍候"); return;
+        }
+        if (!tableRef.current) return;
+
+        setIsGenerating(true);
+        showToast("正在產生完美表格截圖...");
+
+        try {
+          const canvas = await window.html2canvas(tableRef.current, {
+            backgroundColor: "#ffffff",
+            scale: 2, 
+            useCORS: true,
+            onclone: (clonedDocument) => {
+              const outer = clonedDocument.querySelector('[data-screenshot-outer="true"]');
+              const scroll = clonedDocument.querySelector('[data-screenshot-scroll="true"]');
+              if (outer) { outer.style.width = 'max-content'; outer.style.minWidth = '100%'; }
+              if (scroll) { scroll.style.overflow = 'visible'; }
+            }
+          });
+
+          canvas.toBlob(async (blob) => {
+            if (!blob) throw new Error("Canvas is empty");
+            const fileName = `ICC平燙機_${currentDisplayMonth}月.png`;
+            const file = new File([blob], fileName, { type: 'image/png' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              try {
+                await navigator.share({
+                  files: [file],
+                  title: `ICC平燙機紀錄表`,
+                  text: `傳送 ${currentDisplayMonth}月份 紀錄表`
+                });
+                showToast("準備分享！");
+              } catch (err) {}
+            } else {
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = fileName;
+              a.click();
+              URL.revokeObjectURL(url);
+              showToast("圖片已下載");
+            }
+            setIsGenerating(false);
+          }, 'image/png');
+
+        } catch (error) {
+          console.error(error);
+          showToast("產生圖片失敗，請重試");
+          setIsGenerating(false);
+        }
+      };
+
+      const sortedCurrentMonthRecords = records
+        .filter(record => record.date && record.date.startsWith(currentMonthPrefix))
+        // 核心邏輯：只顯示畫面上所選取機台的資料 (相容舊資料預設為平燙機)
+        .filter(record => (record.machine || 'ICC平燙機') === activeMachine)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      return (
+        <div className="min-h-screen p-2 md:p-4 pb-20 relative">
+
+          {toastMessage && (
+            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-2xl flex items-center gap-2 transition-all font-bold">
+              {isFetching || isSyncing || isGenerating ? <Icon name="Loader2" className="animate-spin" size={20} /> : <Icon name="Save" size={20} />}
+              {toastMessage}
+            </div>
+          )}
+
+          {showSignaturePad && (
+            <SignaturePad 
+               initialSignature={signature}
+               onSave={(dataUrl) => {
+                 setSignature(dataUrl);
+                 setShowSignaturePad(false);
+               }}
+               onCancel={() => setShowSignaturePad(false)}
+            />
+          )}
+
+          {showSettings && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Icon name="Cloud" size={24} className="text-blue-500" />
+                  管理員設定
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">強制連接的 Google 試算表</label>
+                    <input 
+                      type="text" 
+                      value={MY_GAS_URL}
+                      readOnly
+                      className="w-full p-2 border border-slate-200 bg-slate-100 rounded-lg outline-none font-mono text-xs text-slate-500"
+                    />
+                    <p className="text-xs text-slate-500 mt-2">
+                      系統已寫死綁定您的試算表，員工開啟即用，無需設定。
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowSettings(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                  <Icon name="X" size={24} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
+
+            {/* Header */}
+            <header className="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-lg ${appConfig.mode === 'api' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                  <Icon name="FileSpreadsheet" size={32} />
+                </div>
+                <div>
+                  <h1 className="text-xl md:text-2xl font-bold text-slate-800">{activeMachine} 日誌</h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    {appConfig.mode === 'api' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">
+                        {isSyncing ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="Cloud" size={12} />} 
+                        {isSyncing ? "雲端同步中..." : "雲端自動連線"}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600">
+                        <Icon name="CloudOff" size={12} /> 本機模式
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {appConfig.mode === 'api' && (
+                   <button 
+                     onClick={fetchCloudRecords}
+                     disabled={isFetching}
+                     className="flex items-center justify-center gap-1 bg-blue-50 text-blue-600 px-3 py-2.5 rounded-lg font-bold hover:bg-blue-100 transition-all disabled:opacity-50"
+                   >
+                     <Icon name="RefreshCw" size={18} className={isFetching ? 'animate-spin' : ''} />
+                     重整
+                   </button>
+                )}
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  className="flex items-center justify-center gap-1 bg-slate-100 text-slate-700 px-3 py-2.5 rounded-lg font-bold hover:bg-slate-200 transition-all"
+                >
+                  <Icon name="Settings" size={18} />
+                </button>
+                <button 
+                  onClick={handleShareImage}
+                  disabled={isGenerating}
+                  className="flex items-center justify-center gap-2 bg-[#06C755] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#05b34c] shadow-md transition-all active:scale-95 disabled:opacity-70"
+                >
+                  {isGenerating ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="ImageIcon" size={18} />}
+                  分享報表
+                </button>
+              </div>
+            </header>
+
+            {/* 新增：機台切換選單 (Tab) */}
+            <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide">
+              {machineList.map(machineName => (
+                <button
+                  key={machineName}
+                  onClick={() => { setActiveMachine(machineName); handleCancelEdit(); }}
+                  className={`px-5 py-2.5 rounded-lg font-bold whitespace-nowrap transition-all shadow-sm ${
+                    activeMachine === machineName 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {machineName}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+
+              {/* Form Sidebar */}
+              <div className="lg:col-span-1 bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 border-t-4 border-t-blue-500 relative">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-bold flex items-center gap-2 text-blue-800">
+                    {editingId ? <Icon name="Edit" size={20} /> : <Icon name="PlusCircle" size={20} />}
+                    {editingId ? '修改紀錄' : '新增紀錄'}
+                  </h2>
+                  {editingId && (
+                    <button onClick={handleCancelEdit} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm bg-slate-100 px-2 py-1 rounded">
+                      <Icon name="X" size={14} /> 取消
+                    </button>
+                  )}
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+                      <Icon name="CalendarDays" size={16} className="text-blue-500"/> 選擇日期
+                    </label>
+                    <input 
+                      type="date" name="date" value={formData.date} onChange={handleInputChange}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-blue-50/50 rounded-lg space-y-3 border border-blue-100">
+                    <div>
+                      <label className="block text-sm font-medium text-blue-900 mb-1">開機時間</label>
+                      <div className="flex gap-2">
+                        <input type="time" name="onTime" value={formData.onTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                        <button type="button" onClick={() => setTimeNow('onTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-blue-900 mb-1">關機時間</label>
+                      <div className="flex gap-2">
+                        <input type="time" name="offTime" value={formData.offTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                        <button type="button" onClick={() => setTimeNow('offTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">平面數量</label>
+                      <input type="text" name="flatQty" value={formData.flatQty} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="數量" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">枕套數量</label>
+                      <input type="text" name="pillowQty" value={formData.pillowQty} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="數量" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">員工簽名</label>
+                    <div 
+                      onClick={() => setShowSignaturePad(true)}
+                      className={`w-full min-h-[80px] p-2 bg-slate-50 border border-slate-300 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-center ${signature ? 'border-blue-400 border-2' : 'border-dashed border-2'}`}
+                    >
+                      {signature ? (
+                         <img src={signature} alt="員工簽名" className="max-h-[70px] max-w-full object-contain" />
+                      ) : (
+                         <div className="text-slate-400 flex flex-col items-center gap-1">
+                           <Icon name="PenTool" size={24} />
+                           <span className="text-sm font-medium">點擊此處手寫簽名</span>
+                         </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button type="submit" className={`w-full mt-4 text-white font-bold p-3.5 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2 ${editingId ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                    <Icon name="Save" size={20} />
+                    {editingId ? '更新紀錄 (瞬間完成)' : '儲存紀錄 (瞬間完成)'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Table Data */}
+              <div className="lg:col-span-2 relative">
+                {isFetching && (
+                  <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center rounded-xl"></div>
+                )}
+                <div ref={tableRef} data-screenshot-outer="true" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col w-full">
+                  <div className="p-4 md:p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div>
+                      <h2 className="text-xl font-extrabold text-slate-800">
+                        {activeMachine} {currentDisplayMonth}月份紀錄
+                      </h2>
+                    </div>
+                    <div className="text-sm px-3 py-1 bg-blue-100 text-blue-800 font-bold rounded-lg">
+                      共 {sortedCurrentMonthRecords.length} 筆
+                    </div>
+                  </div>
+
+                  <div data-screenshot-scroll="true" className="overflow-x-auto flex-1 p-2 md:p-4 min-h-[300px]">
+                    <table className="w-full text-base text-left min-w-[500px]">
+                      <thead className="text-slate-500 border-b-2 border-slate-200">
+                        <tr>
+                          <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">日期</th>
+                          <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">時間(開/關)</th>
+                          <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">數量(平/枕)</th>
+                          <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 min-w-[120px]">員工簽名</th>
+                          <th data-html2canvas-ignore="true" className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-center text-slate-700">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {sortedCurrentMonthRecords.map((record) => (
+                          <tr key={record.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-2 md:px-4 py-4 whitespace-nowrap font-bold text-slate-800 text-lg">
+                              {formatDateForDisplay(record.date)}
+                            </td>
+                            <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                              <div className="text-blue-600 font-bold mb-1">開: {record.onTime || '--:--'}</div>
+                              <div className="text-red-600 font-bold">關: {record.offTime || '--:--'}</div>
+                            </td>
+                            <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                              <div className="text-slate-700 mb-1">平: <span className="font-bold">{record.flatQty || '0'}</span></div>
+                              <div className="text-slate-700">枕: <span className="font-bold">{record.pillowQty || '0'}</span></div>
+                            </td>
+                            <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                              {record.signature ? (
+                                <img src={record.signature} alt="簽名" className="h-10 object-contain border border-slate-200 rounded bg-white px-1" />
+                              ) : (
+                                <span className="text-slate-400 text-sm">無簽名</span>
+                              )}
+                            </td>
+                            <td data-html2canvas-ignore="true" className="px-2 md:px-4 py-4 whitespace-nowrap text-center">
+                              <div className="flex justify-center gap-2">
+                                <button onClick={() => handleEdit(record)} className="text-blue-500 hover:bg-blue-100 p-2 rounded transition-colors"><Icon name="Edit" size={20} /></button>
+                                <button onClick={() => handleDelete(record.id)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded transition-colors"><Icon name="Trash2" size={20} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {sortedCurrentMonthRecords.length === 0 && (
+                          <tr>
+                            <td colSpan="5" className="px-4 py-12 text-center text-slate-500 text-lg">
+                              本月目前還沒有紀錄資料
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-4 py-2 text-right text-xs text-slate-300 font-medium bg-white">
+                    ICC Factory System - Sync Enabled
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+
+</html>
