@@ -12,6 +12,17 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <style>
+    /* 隱藏原生滾動條，保持畫面整潔 */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+  </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased font-sans">
 
@@ -57,18 +68,6 @@
       const dateObj = new Date(isoString);
       const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
       return `${month}/${day}(週${dayOfWeek})`;
-    };
-    
-    // 用於總表的日期顯示格式 (例如: 08/01 (週六))
-    const formatDateForSummary = (isoString) => {
-        if (!isoString) return '';
-        const parts = isoString.split('-');
-        if (parts.length !== 3) return isoString;
-        const month = String(parseInt(parts[1], 10)).padStart(2, '0');
-        const day = String(parseInt(parts[2], 10)).padStart(2, '0');
-        const dateObj = new Date(isoString);
-        const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
-        return `${month}/${day} (週${dayOfWeek})`;
     };
 
     const getCurrentTimeString = () => {
@@ -197,29 +196,17 @@
                    <Icon name="X" size={24} />
                 </button>
              </div>
-
              <div className="flex-1 bg-slate-200 relative p-2 flex flex-col min-h-0">
-                <canvas 
-                   ref={canvasRef}
-                   style={{ touchAction: 'none' }} 
-                   className="w-full h-full block bg-white rounded-lg shadow-inner cursor-crosshair touch-none"
-                />
+                <canvas ref={canvasRef} style={{ touchAction: 'none' }} className="w-full h-full block bg-white rounded-lg shadow-inner cursor-crosshair touch-none" />
                 <div className="absolute top-6 left-6 text-slate-300 pointer-events-none text-xl font-bold opacity-30 select-none">
                    請在此處簽名
                 </div>
              </div>
-
              <div className="p-4 flex gap-3 bg-white border-t">
-                <button 
-                  onClick={handleClear}
-                  className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200 transition-colors"
-                >
+                <button onClick={handleClear} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200 transition-colors">
                   重簽 (清除)
                 </button>
-                <button 
-                  onClick={handleSave}
-                  className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                >
+                <button onClick={handleSave} className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
                   完成簽名
                 </button>
              </div>
@@ -248,51 +235,45 @@
       });
 
       const [showSettings, setShowSettings] = useState(false);
-      const [tempUrl, setTempUrl] = useState(appConfig.apiUrl);
-
       const [records, setRecords] = useState([]);
       const [isFetching, setIsFetching] = useState(false);
       const [isSyncing, setIsSyncing] = useState(false);
       const [isGenerating, setIsGenerating] = useState(false);
       const [toastMessage, setToastMessage] = useState('');
 
-      const defaultForm = { date: getLocalISODate(), flatQty: '', pillowQty: '', onTime: '', offTime: '' };
+      // ★ 擴充表單資料結構，包含所有新舊機台會用到的欄位
+      const defaultForm = { 
+          date: getLocalISODate(), 
+          flatQty: '', pillowQty: '', // ICC平燙機
+          qty: '', // TF-30K, TB-60K, TB-80K, IRT (單一數量)
+          machine1: '', machine2: '', machine3: '', machine4: '', // 撐開機
+          workerCount: '', totalQty: '', bedCover: '', tableCloth: '', // 撐開機
+          onTime: '', offTime: '' 
+      };
       const [formData, setFormData] = useState(defaultForm);
       const [signature, setSignature] = useState(null); 
       const [showSignaturePad, setShowSignaturePad] = useState(false); 
-
       const [editingId, setEditingId] = useState(null);
 
-      // ★ 定義機台清單與「總表」頁籤
-      const machineList = ['ICC平燙機', 'TF-30K', 'TB-60K', 'TB-80K', 'IRT'];
-      // 預設進入系統停留在總表
+      // ★ 新增「撐開機」到清單中
+      const machineList = ['ICC平燙機', 'TF-30K', 'TB-60K', 'TB-80K', 'IRT', '撐開機'];
       const [activeMachine, setActiveMachine] = useState('總表'); 
       const [formMachine, setFormMachine] = useState(machineList[0]);
 
       const currentMonthPrefix = getLocalISODate().substring(0, 7);
       const currentDisplayMonth = new Date().getMonth() + 1;
-      const currentDisplayYear = new Date().getFullYear();
-      const currentMinguoYear = currentDisplayYear - 1911; // 換算民國年
       
-      // 產生當月 1 號到月底的所有日期字串陣列 (例如: "2026-08-01", "2026-08-02"...)
       const currentMonthDates = useMemo(() => {
           const year = new Date().getFullYear();
           const month = new Date().getMonth();
           const numDays = new Date(year, month + 1, 0).getDate();
-          
-          return Array.from({ length: numDays }, (_, i) => {
-              const d = i + 1;
-              return `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          });
+          return Array.from({ length: numDays }, (_, i) => `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`);
       }, []);
 
       useEffect(() => {
         localStorage.setItem('machineAppConfig', JSON.stringify(appConfig));
-        if (appConfig.mode === 'local') {
-           loadLocalRecords();
-        } else {
-           fetchCloudRecords();
-        }
+        if (appConfig.mode === 'local') loadLocalRecords();
+        else fetchCloudRecords();
       }, [appConfig]);
 
       const showToast = (msg) => {
@@ -302,14 +283,14 @@
 
       const loadLocalRecords = () => {
         try {
-          const saved = localStorage.getItem('machineRecords_local_v2');
+          const saved = localStorage.getItem('machineRecords_local_v3');
           if (saved) setRecords(JSON.parse(saved));
           else setRecords([]);
         } catch (e) {}
       };
 
       const saveLocalRecords = (newRecords) => {
-        localStorage.setItem('machineRecords_local_v2', JSON.stringify(newRecords));
+        localStorage.setItem('machineRecords_local_v3', JSON.stringify(newRecords));
         setRecords(newRecords);
       };
 
@@ -338,38 +319,21 @@
         if (!appConfig.apiUrl) return false;
         try {
           const bodyData = JSON.stringify({ action: action, ...payload });
-
           const response = await fetch(appConfig.apiUrl, {
-            method: 'POST',
-            body: bodyData,
-            redirect: 'follow' 
+            method: 'POST', body: bodyData, redirect: 'follow' 
           });
-
-          if (!response.ok) {
-             throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          
           const textData = await response.text();
-          let responseData;
-          try {
-             responseData = JSON.parse(textData);
-          } catch(e) {
-             throw new Error("伺服器回傳的不是有效的 JSON 格式");
-          }
+          let responseData = JSON.parse(textData);
 
           if (responseData.status === 'success') {
-             fetchCloudRecords(); 
-             return true;
+             fetchCloudRecords(); return true;
           } else {
-             console.error("雲端回報錯誤:", responseData.message);
-             showToast(`背景儲存失敗: ${responseData.message}`);
-             return false;
+             showToast(`背景儲存失敗: ${responseData.message}`); return false;
           }
-
         } catch (error) {
-          console.error("Post Error:", error);
-          showToast(`背景傳送失敗，保留於本機`);
-          return false;
+          showToast(`背景傳送失敗，保留於本機`); return false;
         }
       };
 
@@ -384,24 +348,13 @@
 
       const handleSubmit = (e) => {
         e.preventDefault();
-        if (!formData.date) {
-          showToast("請選擇日期！");
-          return;
-        }
+        if (!formData.date) { showToast("請選擇日期！"); return; }
 
         const newId = editingId ? editingId : Date.now().toString();
-        
-        // 取得要儲存的機台名稱
-        const targetMachine = activeMachine; // 因為總表已經不顯示表單了，這裡只會是單一機台的名稱
+        const targetMachine = activeMachine === '總表' ? formMachine : activeMachine;
         
         const recordToSave = { ...formData, id: newId, machine: targetMachine, signature: signature };
-        let updatedRecords = [];
-
-        if (editingId) {
-          updatedRecords = records.map(r => r.id === editingId ? recordToSave : r);
-        } else {
-          updatedRecords = [...records, recordToSave];
-        }
+        let updatedRecords = editingId ? records.map(r => r.id === editingId ? recordToSave : r) : [...records, recordToSave];
 
         setRecords(updatedRecords);
         saveLocalRecords(updatedRecords); 
@@ -413,22 +366,28 @@
 
         if (appConfig.mode === 'api' && appConfig.apiUrl) {
            setIsSyncing(true);
-           const action = editingId ? 'update' : 'create';
-
-           sendToCloud(action, { record: recordToSave }).then(success => {
-               if (success) {
-                   showToast("✓ 雲端同步完成");
-               }
+           sendToCloud(editingId ? 'update' : 'create', { record: recordToSave }).then(success => {
+               if (success) showToast("✓ 雲端同步完成");
                setIsSyncing(false);
            });
         }
       };
 
       const handleEdit = (record) => {
+        // ★ 將所有可能的欄位都載入表單中
         setFormData({
           date: record.date || '',
           flatQty: record.flatQty || '',
           pillowQty: record.pillowQty || '',
+          qty: record.qty || record.flatQty || '', // 舊資料相容：如果舊一般機台存在 flatQty，自動載入至 qty
+          machine1: record.machine1 || '',
+          machine2: record.machine2 || '',
+          machine3: record.machine3 || '',
+          machine4: record.machine4 || '',
+          workerCount: record.workerCount || '',
+          totalQty: record.totalQty || '',
+          bedCover: record.bedCover || '',
+          tableCloth: record.tableCloth || '',
           onTime: record.onTime || '',
           offTime: record.offTime || ''
         });
@@ -456,37 +415,28 @@
                 if(success) showToast("✓ 雲端已刪除");
                 setIsSyncing(false);
              });
-          } else {
-            showToast("本機紀錄已刪除");
           }
         }
       };
 
       const handleShareImage = async () => {
-        if (!window.html2canvas) {
-          showToast("截圖模組載入中，請稍候"); return;
-        }
-        
-        // 依照目前的頁籤決定要截圖的表格
-        const targetElement = activeMachine === '總表' ? summaryTableRef.current : tableRef.current;
-        
-        if (!targetElement) return;
-        
         if (activeMachine !== '總表' && sortedCurrentMonthRecords.length === 0) {
           showToast("當月沒有資料可以分享喔"); return;
         }
+        if (!window.html2canvas) { showToast("截圖模組載入中，請稍候"); return; }
+        
+        const targetElement = activeMachine === '總表' ? summaryTableRef.current : tableRef.current;
+        if (!targetElement) return;
 
         setIsGenerating(true);
         showToast("正在產生完美表格截圖...");
 
         try {
           const canvas = await window.html2canvas(targetElement, {
-            backgroundColor: "#ffffff",
-            scale: 2, 
-            useCORS: true,
-            onclone: (clonedDocument) => {
-              const outer = clonedDocument.querySelector('[data-screenshot-outer="true"]');
-              const scroll = clonedDocument.querySelector('[data-screenshot-scroll="true"]');
+            backgroundColor: "#ffffff", scale: 2, useCORS: true,
+            onclone: (clonedDoc) => {
+              const outer = clonedDoc.querySelector('[data-screenshot-outer="true"]');
+              const scroll = clonedDoc.querySelector('[data-screenshot-scroll="true"]');
               if (outer) { outer.style.width = 'max-content'; outer.style.minWidth = '100%'; }
               if (scroll) { scroll.style.overflow = 'visible'; }
             }
@@ -494,43 +444,30 @@
 
           canvas.toBlob(async (blob) => {
             if (!blob) throw new Error("Canvas is empty");
-            // ★ 動態檔名
             const fileName = `${activeMachine}_${currentDisplayMonth}月.png`;
             const file = new File([blob], fileName, { type: 'image/png' });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
               try {
-                await navigator.share({
-                  files: [file],
-                  title: `${activeMachine}紀錄表`,
-                  text: `傳送 ${currentDisplayMonth}月份 ${activeMachine}紀錄表`
-                });
+                await navigator.share({ files: [file], title: `${activeMachine}紀錄表`, text: `傳送 ${currentDisplayMonth}月份 ${activeMachine}紀錄表` });
                 showToast("準備分享！");
               } catch (err) {}
             } else {
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
-              a.href = url;
-              a.download = fileName;
-              a.click();
-              URL.revokeObjectURL(url);
+              a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url);
               showToast("圖片已下載");
             }
             setIsGenerating(false);
           }, 'image/png');
-
         } catch (error) {
-          console.error(error);
-          showToast("產生圖片失敗，請重試");
-          setIsGenerating(false);
+          showToast("產生圖片失敗，請重試"); setIsGenerating(false);
         }
       };
 
-      // 單一機台頁籤用的資料過濾邏輯
       const sortedCurrentMonthRecords = records
         .filter(record => record.date && record.date.startsWith(currentMonthPrefix))
         .filter(record => {
-           // 舊資料相容處理
            const dbMachineName = record.machine === 'ICC' ? 'ICC平燙機' : (record.machine || 'ICC平燙機');
            if (activeMachine === '總表') return true; 
            return dbMachineName === activeMachine;
@@ -543,46 +480,193 @@
            return timeA.localeCompare(timeB);
         });
         
-      // 產生總結算表需要的資料格式 (日期 -> 機台 -> 該天該機台資料)
+      // ★ 總表資料處理 (只計算數量)
       const summaryData = useMemo(() => {
           const dataMap = {};
-          
-          // 1. 初始化資料結構
           currentMonthDates.forEach(date => {
               dataMap[date] = {};
-              machineList.forEach(machine => {
-                  dataMap[date][machine] = null;
-              });
+              machineList.forEach(m => dataMap[date][m] = null);
           });
           
-          // 2. 將雲端抓下來的資料填入對應的格子
           records.forEach(record => {
              if (record.date && record.date.startsWith(currentMonthPrefix)) {
                  const dbMachineName = record.machine === 'ICC' ? 'ICC平燙機' : (record.machine || 'ICC平燙機');
                  if (dataMap[record.date] && machineList.includes(dbMachineName)) {
-                     
-                     // 如果一天內同一機台有多筆資料，簡單累加數量，保留最早開機與最晚關機時間
                      const existing = dataMap[record.date][dbMachineName];
                      if (existing) {
-                         const flat = (parseInt(existing.flatQty) || 0) + (parseInt(record.flatQty) || 0);
-                         const pillow = (parseInt(existing.pillowQty) || 0) + (parseInt(record.pillowQty) || 0);
+                         // 累加數量邏輯
+                         const getNum = val => parseInt(val) || 0;
+                         const flat = getNum(existing.flatQty) + getNum(record.flatQty);
+                         const pillow = getNum(existing.pillowQty) + getNum(record.pillowQty);
+                         // 相容舊資料: 一般機台如果 qty 沒寫，去抓 flatQty
+                         const oldQty = getNum(existing.qty || existing.flatQty) + getNum(record.qty || record.flatQty);
+                         const totalQ = getNum(existing.totalQty) + getNum(record.totalQty);
+                         
                          dataMap[record.date][dbMachineName] = {
                              flatQty: flat > 0 ? flat.toString() : '',
                              pillowQty: pillow > 0 ? pillow.toString() : '',
-                             // 這裡簡化處理：取字串比較找出最小/最大時間
-                             onTime: (existing.onTime && record.onTime) ? (existing.onTime < record.onTime ? existing.onTime : record.onTime) : (existing.onTime || record.onTime),
-                             offTime: (existing.offTime && record.offTime) ? (existing.offTime > record.offTime ? existing.offTime : record.offTime) : (existing.offTime || record.offTime),
+                             qty: oldQty > 0 ? oldQty.toString() : '',
+                             totalQty: totalQ > 0 ? totalQ.toString() : '',
                          };
                      } else {
-                         // 第一筆資料直接放入
-                         dataMap[record.date][dbMachineName] = { ...record };
+                         dataMap[record.date][dbMachineName] = { 
+                           ...record,
+                           qty: record.qty || record.flatQty || '' // 初始化舊資料相容
+                         };
                      }
                  }
              } 
           });
-          
           return dataMap;
       }, [records, currentMonthPrefix, currentMonthDates, machineList]);
+
+      // 根據目前所選機台，決定表單要顯示哪些欄位
+      const renderFormFields = () => {
+        // 在總表頁籤時，顯示目前選擇的子機台表單
+        const currentFormType = activeMachine === '總表' ? formMachine : activeMachine;
+
+        if (currentFormType === 'ICC平燙機') {
+           return (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">平面數量</label>
+                  <input type="text" name="flatQty" value={formData.flatQty} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="數量" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">枕套數量</label>
+                  <input type="text" name="pillowQty" value={formData.pillowQty} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="數量" />
+                </div>
+              </div>
+           );
+        } else if (currentFormType === '撐開機') {
+           return (
+              <div className="space-y-4 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                 <div>
+                    <label className="block text-sm font-bold text-purple-900 mb-2 border-b border-purple-200 pb-1">各號機生產量</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" name="machine1" value={formData.machine1} onChange={handleInputChange} className="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" placeholder="1號機數量" />
+                      <input type="text" name="machine2" value={formData.machine2} onChange={handleInputChange} className="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" placeholder="2號機數量" />
+                      <input type="text" name="machine3" value={formData.machine3} onChange={handleInputChange} className="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" placeholder="3號機數量" />
+                      <input type="text" name="machine4" value={formData.machine4} onChange={handleInputChange} className="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" placeholder="4號機數量" />
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">上班人數</label>
+                      <input type="text" name="workerCount" value={formData.workerCount} onChange={handleInputChange} className="w-full p-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="人數" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">單日總量</label>
+                      <input type="text" name="totalQty" value={formData.totalQty} onChange={handleInputChange} className="w-full p-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none font-bold text-purple-800" placeholder="總計數量" />
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">床被</label>
+                      <input type="text" name="bedCover" value={formData.bedCover} onChange={handleInputChange} className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="數量" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">檯布</label>
+                      <input type="text" name="tableCloth" value={formData.tableCloth} onChange={handleInputChange} className="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="數量" />
+                    </div>
+                 </div>
+              </div>
+           );
+        } else {
+           // TF-30K, TB-60K, TB-80K, IRT 等一般機台
+           return (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">數量</label>
+                <input type="text" name="qty" value={formData.qty} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800" placeholder="請輸入總數量" />
+              </div>
+           );
+        }
+      };
+
+      const renderTableHeaders = () => {
+         if (activeMachine === 'ICC平燙機') {
+            return (
+               <>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">時間(開/關)</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">數量(平/枕)</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 min-w-[120px]">員工簽名</th>
+               </>
+            );
+         } else if (activeMachine === '撐開機') {
+            return (
+               <>
+                 <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 border-l border-slate-200 bg-purple-50 text-center">1號機</th>
+                 <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 bg-purple-50 text-center">2號機</th>
+                 <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 bg-purple-50 text-center">3號機</th>
+                 <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 border-r border-slate-200 bg-purple-50 text-center">4號機</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 text-center">上班人數</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-purple-700 text-center text-lg">單日總量</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 text-center">床被</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 text-center">檯布</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 min-w-[100px]">簽名</th>
+               </>
+            );
+         } else {
+            return (
+               <>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">時間(開/關)</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">總數量</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 min-w-[120px]">員工簽名</th>
+               </>
+            );
+         }
+      };
+
+      const renderTableCells = (record) => {
+         if (activeMachine === 'ICC平燙機') {
+            return (
+               <>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                    <div className="text-blue-600 font-bold mb-1">開: {record.onTime || '--:--'}</div>
+                    <div className="text-red-600 font-bold">關: {record.offTime || '--:--'}</div>
+                  </td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                    <div className="text-slate-700 mb-1">平: <span className="font-bold text-lg">{record.flatQty || '-'}</span></div>
+                    <div className="text-slate-700">枕: <span className="font-bold text-lg">{record.pillowQty || '-'}</span></div>
+                  </td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                    {record.signature ? <img src={record.signature} alt="簽名" className="h-10 object-contain border border-slate-200 rounded bg-white px-1" /> : <span className="text-slate-400 text-sm">無簽名</span>}
+                  </td>
+               </>
+            );
+         } else if (activeMachine === '撐開機') {
+            return (
+               <>
+                  <td className="px-2 py-4 whitespace-nowrap border-l border-slate-100 text-center font-medium">{record.machine1 || '-'}</td>
+                  <td className="px-2 py-4 whitespace-nowrap text-center font-medium">{record.machine2 || '-'}</td>
+                  <td className="px-2 py-4 whitespace-nowrap text-center font-medium">{record.machine3 || '-'}</td>
+                  <td className="px-2 py-4 whitespace-nowrap border-r border-slate-100 text-center font-medium">{record.machine4 || '-'}</td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap text-center font-bold text-slate-600">{record.workerCount || '-'}</td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap text-center font-bold text-xl text-purple-700 bg-purple-50/30">{record.totalQty || '-'}</td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap text-center text-slate-600 font-medium">{record.bedCover || '-'}</td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap text-center text-slate-600 font-medium">{record.tableCloth || '-'}</td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                    {record.signature ? <img src={record.signature} alt="簽名" className="h-8 object-contain border border-slate-200 rounded bg-white px-1" /> : <span className="text-slate-400 text-sm">無</span>}
+                  </td>
+               </>
+            );
+         } else {
+            return (
+               <>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                    <div className="text-blue-600 font-bold mb-1">開: {record.onTime || '--:--'}</div>
+                    <div className="text-red-600 font-bold">關: {record.offTime || '--:--'}</div>
+                  </td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                     <span className="font-bold text-xl text-slate-800">{record.qty || record.flatQty || '-'}</span>
+                  </td>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                    {record.signature ? <img src={record.signature} alt="簽名" className="h-10 object-contain border border-slate-200 rounded bg-white px-1" /> : <span className="text-slate-400 text-sm">無簽名</span>}
+                  </td>
+               </>
+            );
+         }
+      };
 
       return (
         <div className="min-h-screen p-2 md:p-4 pb-20 relative">
@@ -597,10 +681,7 @@
           {showSignaturePad && (
             <SignaturePad 
                initialSignature={signature}
-               onSave={(dataUrl) => {
-                 setSignature(dataUrl);
-                 setShowSignaturePad(false);
-               }}
+               onSave={(dataUrl) => { setSignature(dataUrl); setShowSignaturePad(false); }}
                onCancel={() => setShowSignaturePad(false)}
             />
           )}
@@ -609,33 +690,21 @@
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Icon name="Cloud" size={24} className="text-blue-500" />
-                  管理員設定
+                  <Icon name="Cloud" size={24} className="text-blue-500" /> 管理員設定
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">強制連接的 Google 試算表</label>
-                    <input 
-                      type="text" 
-                      value={MY_GAS_URL}
-                      readOnly
-                      className="w-full p-2 border border-slate-200 bg-slate-100 rounded-lg outline-none font-mono text-xs text-slate-500"
-                    />
-                    <p className="text-xs text-slate-500 mt-2">
-                      系統已寫死綁定您的試算表，員工開啟即用，無需設定。
-                    </p>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">綁定 Google 試算表</label>
+                    <input type="text" value={MY_GAS_URL} readOnly className="w-full p-2 border border-slate-200 bg-slate-100 rounded-lg outline-none font-mono text-xs text-slate-500" />
                   </div>
                 </div>
-                <button onClick={() => setShowSettings(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                  <Icon name="X" size={24} />
-                </button>
+                <button onClick={() => setShowSettings(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><Icon name="X" size={24} /></button>
               </div>
             </div>
           )}
 
           <div className="max-w-[1400px] mx-auto space-y-4 md:space-y-6">
 
-            {/* Header */}
             <header className="bg-white p-4 md:p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-lg ${appConfig.mode === 'api' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -646,8 +715,7 @@
                   <div className="flex items-center gap-2 mt-1">
                     {appConfig.mode === 'api' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">
-                        {isSyncing ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="Cloud" size={12} />} 
-                        {isSyncing ? "雲端同步中..." : "雲端自動連線"}
+                        {isSyncing ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="Cloud" size={12} />} 同步中
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600">
@@ -660,42 +728,26 @@
 
               <div className="flex flex-wrap gap-2">
                 {appConfig.mode === 'api' && (
-                   <button 
-                     onClick={fetchCloudRecords}
-                     disabled={isFetching}
-                     className="flex items-center justify-center gap-1 bg-blue-50 text-blue-600 px-3 py-2.5 rounded-lg font-bold hover:bg-blue-100 transition-all disabled:opacity-50"
-                   >
-                     <Icon name="RefreshCw" size={18} className={isFetching ? 'animate-spin' : ''} />
-                     重整
+                   <button onClick={fetchCloudRecords} disabled={isFetching} className="flex items-center gap-1 bg-blue-50 text-blue-600 px-3 py-2.5 rounded-lg font-bold hover:bg-blue-100">
+                     <Icon name="RefreshCw" size={18} className={isFetching ? 'animate-spin' : ''} /> 重整
                    </button>
                 )}
-                <button 
-                  onClick={() => setShowSettings(true)}
-                  className="flex items-center justify-center gap-1 bg-slate-100 text-slate-700 px-3 py-2.5 rounded-lg font-bold hover:bg-slate-200 transition-all"
-                >
+                <button onClick={() => setShowSettings(true)} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-3 py-2.5 rounded-lg font-bold hover:bg-slate-200">
                   <Icon name="Settings" size={18} />
                 </button>
-                <button 
-                  onClick={handleShareImage}
-                  disabled={isGenerating}
-                  className="flex items-center justify-center gap-2 bg-[#06C755] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#05b34c] shadow-md transition-all active:scale-95 disabled:opacity-70"
-                >
-                  {isGenerating ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="ImageIcon" size={18} />}
-                  分享報表
+                <button onClick={handleShareImage} disabled={isGenerating} className="flex items-center gap-2 bg-[#06C755] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#05b34c] shadow-md active:scale-95">
+                  {isGenerating ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="ImageIcon" size={18} />} 分享報表
                 </button>
               </div>
             </header>
 
-            {/* 頁籤選擇區塊 */}
             <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide">
               {['總表', ...machineList].map(machineName => (
                 <button
                   key={machineName}
                   onClick={() => { setActiveMachine(machineName); handleCancelEdit(); }}
                   className={`px-5 py-2.5 rounded-lg font-bold whitespace-nowrap transition-all shadow-sm ${
-                    activeMachine === machineName 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    activeMachine === machineName ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   {machineName}
@@ -703,12 +755,10 @@
               ))}
             </div>
 
-            {/* 主要內容區 */}
-            {/* 動態調整 Grid：如果在總表，就只顯示一大欄(12 col)，否則顯示表單(1 col)+資料(3 col) */}
-            <div className={`grid grid-cols-1 ${activeMachine === '總表' ? '' : 'lg:grid-cols-4'} gap-4 md:gap-6`}>
+            <div className={`grid grid-cols-1 ${activeMachine === '總表' ? '' : 'xl:grid-cols-4'} gap-4 md:gap-6`}>
               
-              {/* Form Sidebar - 只有在單一機台頁籤時才會顯示 */}
-              <div className={`${activeMachine === '總表' ? 'hidden' : 'lg:col-span-1'} bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 border-t-4 border-t-blue-500 relative`}>
+              {}
+              <div className={`${activeMachine === '總表' ? 'hidden' : 'xl:col-span-1'} bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 border-t-4 border-t-blue-500 relative`}>
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-bold flex items-center gap-2 text-blue-800">
                     {editingId ? <Icon name="Edit" size={20} /> : <Icon name="PlusCircle" size={20} />}
@@ -722,119 +772,84 @@
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  
+                  {activeMachine === '總表' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">對應機台</label>
+                      <select value={formMachine} onChange={(e) => setFormMachine(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none font-medium text-blue-800">
+                        {machineList.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
                       <Icon name="CalendarDays" size={16} className="text-blue-500"/> 選擇日期
                     </label>
-                    <input 
-                      type="date" name="date" value={formData.date} onChange={handleInputChange}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium cursor-pointer"
-                    />
+                    <input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none font-medium cursor-pointer" />
                   </div>
 
-                  <div className="p-3 bg-blue-50/50 rounded-lg space-y-3 border border-blue-100">
-                    <div>
-                      <label className="block text-sm font-medium text-blue-900 mb-1">開機時間</label>
-                      <div className="flex gap-2">
-                        <input type="time" name="onTime" value={formData.onTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                        <button type="button" onClick={() => setTimeNow('onTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
+                  {/* 撐開機隱藏開關機時間，保持畫面乾淨 */}
+                  {(activeMachine !== '撐開機' && (activeMachine !== '總表' || formMachine !== '撐開機')) && (
+                      <div className="p-3 bg-blue-50/50 rounded-lg space-y-3 border border-blue-100">
+                        <div>
+                          <label className="block text-sm font-medium text-blue-900 mb-1">開機時間</label>
+                          <div className="flex gap-2">
+                            <input type="time" name="onTime" value={formData.onTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg outline-none" />
+                            <button type="button" onClick={() => setTimeNow('onTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-blue-900 mb-1">關機時間</label>
+                          <div className="flex gap-2">
+                            <input type="time" name="offTime" value={formData.offTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg outline-none" />
+                            <button type="button" onClick={() => setTimeNow('offTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-blue-900 mb-1">關機時間</label>
-                      <div className="flex gap-2">
-                        <input type="time" name="offTime" value={formData.offTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                        <button type="button" onClick={() => setTimeNow('offTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
-                      </div>
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">平面數量</label>
-                      <input type="text" name="flatQty" value={formData.flatQty} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="數量" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">枕套數量</label>
-                      <input type="text" name="pillowQty" value={formData.pillowQty} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="數量" />
-                    </div>
-                  </div>
+                  {renderFormFields()}
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">員工簽名</label>
-                    <div 
-                      onClick={() => setShowSignaturePad(true)}
-                      className={`w-full min-h-[80px] p-2 bg-slate-50 border border-slate-300 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-center ${signature ? 'border-blue-400 border-2' : 'border-dashed border-2'}`}
-                    >
-                      {signature ? (
-                         <img src={signature} alt="員工簽名" className="max-h-[70px] max-w-full object-contain" />
-                      ) : (
-                         <div className="text-slate-400 flex flex-col items-center gap-1">
-                           <Icon name="PenTool" size={24} />
-                           <span className="text-sm font-medium">點擊此處手寫簽名</span>
-                         </div>
-                      )}
+                    <div onClick={() => setShowSignaturePad(true)} className={`w-full min-h-[80px] p-2 bg-slate-50 border border-slate-300 rounded-lg cursor-pointer hover:bg-blue-50 flex items-center justify-center ${signature ? 'border-blue-400 border-2' : 'border-dashed border-2'}`}>
+                      {signature ? <img src={signature} alt="員工簽名" className="max-h-[70px] max-w-full object-contain" /> : <div className="text-slate-400 flex flex-col items-center gap-1"><Icon name="PenTool" size={24} /><span className="text-sm font-medium">點擊此處手寫簽名</span></div>}
                     </div>
                   </div>
 
-                  <button type="submit" className={`w-full mt-4 text-white font-bold p-3.5 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2 ${editingId ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  <button type="submit" className={`w-full mt-4 text-white font-bold p-3.5 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2 ${editingId ? 'bg-orange-500' : 'bg-blue-600'}`}>
                     <Icon name="Save" size={20} />
                     {editingId ? '更新紀錄 (瞬間完成)' : '儲存紀錄 (瞬間完成)'}
                   </button>
                 </form>
               </div>
 
-              {/* Table Data - 單一機台顯示 */}
+              {}
               {activeMachine !== '總表' && (
-                  <div className="lg:col-span-3 relative">
-                    {isFetching && (
-                      <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center rounded-xl"></div>
-                    )}
+                  <div className="xl:col-span-3 relative">
+                    {isFetching && <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center rounded-xl"></div>}
                     <div ref={tableRef} data-screenshot-outer="true" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col w-full">
                       <div className="p-4 md:p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                        <div>
-                          <h2 className="text-xl font-extrabold text-slate-800">
-                            {activeMachine} {currentDisplayMonth}月份紀錄
-                          </h2>
-                        </div>
-                        <div className="text-sm px-3 py-1 bg-blue-100 text-blue-800 font-bold rounded-lg">
-                          共 {sortedCurrentMonthRecords.length} 筆
-                        </div>
+                        <h2 className="text-xl font-extrabold text-slate-800">{activeMachine} {currentDisplayMonth}月份紀錄</h2>
+                        <div className="text-sm px-3 py-1 bg-blue-100 text-blue-800 font-bold rounded-lg">共 {sortedCurrentMonthRecords.length} 筆</div>
                       </div>
 
                       <div data-screenshot-scroll="true" className="overflow-x-auto flex-1 p-2 md:p-4 min-h-[300px]">
-                        <table className="w-full text-base text-left min-w-[500px]">
-                          <thead className="text-slate-500 border-b-2 border-slate-200">
+                        <table className="w-full text-base text-left min-w-max">
+                          <thead className="text-slate-500 border-b-2 border-slate-200 bg-white">
                             <tr>
                               <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">日期</th>
-                              <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">時間(開/關)</th>
-                              <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">數量</th>
-                              <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700 min-w-[120px]">員工簽名</th>
-                              <th data-html2canvas-ignore="true" className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-center text-slate-700">操作</th>
+                              {renderTableHeaders()}
+                              <th data-html2canvas-ignore="true" className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-center text-slate-700 border-l border-slate-100">操作</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {sortedCurrentMonthRecords.map((record) => (
                               <tr key={record.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-2 md:px-4 py-4 whitespace-nowrap font-bold text-slate-800 text-lg">
-                                  {formatDateForDisplay(record.date)}
-                                </td>
-                                <td className="px-2 md:px-4 py-4 whitespace-nowrap">
-                                  <div className="text-blue-600 font-bold mb-1">開: {record.onTime || '--:--'}</div>
-                                  <div className="text-red-600 font-bold">關: {record.offTime || '--:--'}</div>
-                                </td>
-                                <td className="px-2 md:px-4 py-4 whitespace-nowrap">
-                                  <div className="text-slate-700 mb-1">平: <span className="font-bold">{record.flatQty || '0'}</span></div>
-                                  <div className="text-slate-700">枕: <span className="font-bold">{record.pillowQty || '0'}</span></div>
-                                </td>
-                                <td className="px-2 md:px-4 py-4 whitespace-nowrap">
-                                  {record.signature ? (
-                                    <img src={record.signature} alt="簽名" className="h-10 object-contain border border-slate-200 rounded bg-white px-1" />
-                                  ) : (
-                                    <span className="text-slate-400 text-sm">無簽名</span>
-                                  )}
-                                </td>
-                                <td data-html2canvas-ignore="true" className="px-2 md:px-4 py-4 whitespace-nowrap text-center">
+                                <td className="px-2 md:px-4 py-4 whitespace-nowrap font-bold text-slate-800 text-lg">{formatDateForDisplay(record.date)}</td>
+                                {renderTableCells(record)}
+                                <td data-html2canvas-ignore="true" className="px-2 md:px-4 py-4 whitespace-nowrap text-center border-l border-slate-100">
                                   <div className="flex justify-center gap-2">
                                     <button onClick={() => handleEdit(record)} className="text-blue-500 hover:bg-blue-100 p-2 rounded transition-colors"><Icon name="Edit" size={20} /></button>
                                     <button onClick={() => handleDelete(record.id)} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded transition-colors"><Icon name="Trash2" size={20} /></button>
@@ -843,95 +858,76 @@
                               </tr>
                             ))}
                             {sortedCurrentMonthRecords.length === 0 && (
-                              <tr>
-                                <td colSpan="5" className="px-4 py-12 text-center text-slate-500 text-lg">
-                                  本月目前還沒有紀錄資料
-                                </td>
-                              </tr>
+                              <tr><td colSpan="10" className="px-4 py-12 text-center text-slate-500 text-lg">本月目前還沒有紀錄資料</td></tr>
                             )}
                           </tbody>
                         </table>
                       </div>
-                      <div className="px-4 py-2 text-right text-xs text-slate-300 font-medium bg-white">
-                        ICC Factory System - Sync Enabled
-                      </div>
+                      <div className="px-4 py-2 text-right text-xs text-slate-300 font-medium bg-white">ICC Factory System - Sync Enabled</div>
                     </div>
                   </div>
               )}
 
-              {/* Table Data - 全新報表式總結算表 */}
+              {}
               {activeMachine === '總表' && (
-                  <div className="relative w-full overflow-hidden">
-                    {isFetching && (
-                      <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center rounded-xl"></div>
-                    )}
-                    
-                    {/* 給予足夠的內邊距與陰影 */}
-                    <div ref={summaryTableRef} data-screenshot-outer="true" className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col w-full">
-                      
-                      {/* 報表標題區 */}
-                      <div className="p-4 md:p-6 bg-white border-b border-slate-200">
-                        <div className="flex justify-between items-center">
-                          <h2 className="text-xl md:text-2xl font-extrabold text-slate-800 flex items-center gap-3">
-                            <span className="text-2xl">🗓️</span> 
-                            {currentMinguoYear}年{currentDisplayMonth}月份設備用量總結算表 
-                            <span className="text-base font-medium text-slate-500">
-                              ({currentDisplayMonth}/1 - {currentDisplayMonth}/{currentMonthDates.length})
-                            </span>
-                          </h2>
-                        </div>
+                  <div className="relative w-full overflow-x-auto">
+                    {isFetching && <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center rounded-xl"></div>}
+                    <div ref={summaryTableRef} data-screenshot-outer="true" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col w-full min-w-max">
+                      <div className="p-4 md:p-5 bg-white border-b border-slate-200">
+                        <h2 className="text-xl md:text-2xl font-extrabold text-slate-800 flex items-center gap-2">
+                          🗓️ 115年{currentDisplayMonth}月份設備總結算表 <span className="text-base text-slate-500">({currentDisplayMonth}/1 - {currentDisplayMonth}/{currentMonthDates.length})</span>
+                        </h2>
                       </div>
 
-                      {/* 報表內容區 */}
-                      <div data-screenshot-scroll="true" className="overflow-x-auto w-full pb-4">
-                        <table className="w-full text-center border-collapse">
-                          <thead className="bg-[#93C5FD] text-slate-800">
+                      <div data-screenshot-scroll="true" className="overflow-x-auto flex-1 pb-4">
+                        <table className="w-full text-base text-center border-collapse">
+                          <thead className="bg-[#93C5FD] text-slate-800 border-b border-slate-300">
                             <tr>
-                              <th className="px-6 py-4 font-bold border border-slate-300 min-w-[140px] text-lg bg-[#93C5FD]">
-                                日期
-                              </th>
+                              <th className="px-6 py-4 font-bold border border-slate-300 min-w-[140px] text-lg">日期</th>
                               {machineList.map(machine => (
-                                  <th key={machine} className="px-4 py-4 font-bold border border-slate-300 whitespace-nowrap min-w-[160px] text-lg bg-[#93C5FD]">
+                                  <th key={machine} className="px-6 py-4 font-bold border border-slate-300 whitespace-nowrap text-lg">
                                       {machine}用量
                                   </th>
                               ))}
                             </tr>
                           </thead>
-                          
                           <tbody className="bg-white">
                             {currentMonthDates.map((dateStr) => {
                                 const rowData = summaryData[dateStr];
-                                
                                 return (
-                                  <tr key={dateStr} className="hover:bg-slate-50 transition-colors">
-                                    {/* 第一欄：日期 */}
-                                    <td className="px-6 py-3 font-bold text-slate-800 border border-slate-300 whitespace-nowrap text-lg">
-                                      {formatDateForSummary(dateStr)}
+                                  <tr key={dateStr} className="hover:bg-slate-50 transition-colors border-b border-slate-200">
+                                    <td className="px-6 py-3 font-bold text-slate-800 border border-slate-200 whitespace-nowrap bg-blue-50/30">
+                                      {formatDateForDisplay(dateStr)}
                                     </td>
-                                    
-                                    {/* 設備欄位動態渲染 */}
                                     {machineList.map(machine => {
                                         const mData = rowData[machine];
                                         return (
-                                            <td key={machine} className="px-4 py-2 border border-slate-300 align-middle">
+                                            <td key={machine} className="px-6 py-4 border border-slate-200 align-middle">
                                                 {mData ? (
                                                     <div className="flex flex-col items-center justify-center">
-                                                        {/* 有數量才顯示數量區塊 */}
-                                                        {(mData.flatQty || mData.pillowQty) && (
-                                                          <div className="font-bold text-blue-800 text-[15px] mb-1">
+                                                        {/* 根據機台種類只顯示對應的數量，不顯示時間 */}
+                                                        {machine === 'ICC平燙機' && (mData.flatQty || mData.pillowQty) && (
+                                                           <div className="text-blue-800 font-bold text-[16px] whitespace-nowrap">
                                                               {mData.flatQty && <span>平:{mData.flatQty} </span>}
                                                               {mData.pillowQty && <span>枕:{mData.pillowQty}</span>}
-                                                          </div>
-                                                        )}
-                                                        {/* 有時間才顯示時間區塊 */}
-                                                        {(mData.onTime || mData.offTime) && (
-                                                           <div className="text-[13px] font-medium px-2 py-0.5 rounded text-slate-600 bg-slate-100">
-                                                               {mData.onTime || '--'} ~ {mData.offTime || '--'}
                                                            </div>
+                                                        )}
+                                                        {machine === '撐開機' && mData.totalQty && (
+                                                           <span className="text-purple-700 font-extrabold text-[18px]">總量:{mData.totalQty}</span>
+                                                        )}
+                                                        {['TF-30K', 'TB-60K', 'TB-80K', 'IRT'].includes(machine) && mData.qty && (
+                                                           <span className="text-slate-800 font-bold text-[18px]">{mData.qty}</span>
+                                                        )}
+                                                        
+                                                        {/* 如果資料存在但剛剛好對應欄位沒填寫，顯示一個備註 */}
+                                                        {((machine === 'ICC平燙機' && !mData.flatQty && !mData.pillowQty) || 
+                                                          (machine === '撐開機' && !mData.totalQty) || 
+                                                          (['TF-30K', 'TB-60K', 'TB-80K', 'IRT'].includes(machine) && !mData.qty)) && (
+                                                            <span className="text-slate-400 text-sm italic">有紀錄但無數量</span>
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <span className="text-blue-700 font-bold text-xl">-</span>
+                                                    <span className="text-blue-600 font-bold text-xl">-</span>
                                                 )}
                                             </td>
                                         )
@@ -941,11 +937,6 @@
                             })}
                           </tbody>
                         </table>
-                      </div>
-                      
-                      {/* 頁尾 */}
-                      <div className="px-6 py-3 text-right text-sm text-slate-400 font-medium bg-slate-50 border-t border-slate-200 rounded-b-xl">
-                        自動產生由 ICC Factory System
                       </div>
                     </div>
                   </div>
