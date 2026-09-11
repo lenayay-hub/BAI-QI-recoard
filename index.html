@@ -241,13 +241,15 @@
       const [isGenerating, setIsGenerating] = useState(false);
       const [toastMessage, setToastMessage] = useState('');
 
+      // ★ 恢復為原先完美的變數名稱（這樣雲端 GAS 才能認得並儲存），但內容改為裝載「時間」
       const defaultForm = { 
           date: getLocalISODate(), 
           flatQty: '', pillowQty: '', 
           qty: '', 
           machine1: '', machine2: '', machine3: '', machine4: '', 
           workerCount: '', totalQty: '', 
-          bedCoverEndTime: '', tableClothStartTime: '', tableClothEndTime: '', 
+          bedCover: '',   // 用來裝 床被「結束時間」
+          tableCloth: '', // 用來裝 檯布「開始時間~結束時間」
           onTime: '', offTime: '' 
       };
       const [formData, setFormData] = useState(defaultForm);
@@ -384,9 +386,8 @@
           machine4: record.machine4 || '',
           workerCount: record.workerCount || '',
           totalQty: record.totalQty || '',
-          bedCoverEndTime: record.bedCoverEndTime || '',
-          tableClothStartTime: record.tableClothStartTime || '',
-          tableClothEndTime: record.tableClothEndTime || '',
+          bedCover: record.bedCover || '',
+          tableCloth: record.tableCloth || '',
           onTime: record.onTime || '',
           offTime: record.offTime || ''
         });
@@ -535,6 +536,11 @@
               </div>
            );
         } else if (currentFormType === '撐開機') {
+           // 處理檯布(tableCloth)字串分割
+           const tcParts = (formData.tableCloth || '').split('~');
+           const tcStart = tcParts[0] || '';
+           const tcEnd = tcParts.length > 1 ? tcParts[1] : '';
+
            return (
               <div className="space-y-4 bg-purple-50 p-3 rounded-lg border border-purple-100">
                  <div>
@@ -557,13 +563,14 @@
                     </div>
                  </div>
                  
-                 {/* 床被與檯布輸入區 (僅有時間) */}
+                 {/* 床被與檯布輸入區 (巧妙將時間存進舊的文字變數中) */}
                  <div className="space-y-3 mt-3 border-t border-purple-200 pt-3">
                     <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-sm">
                       <label className="block text-sm font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">床被</label>
                       <div>
                         <label className="block text-xs text-slate-500 mb-1">結束時間</label>
-                        <input type="time" name="bedCoverEndTime" value={formData.bedCoverEndTime} onChange={handleInputChange} className="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
+                        {/* 床被時間直接寫進 bedCover 變數 */}
+                        <input type="time" name="bedCover" value={formData.bedCover} onChange={handleInputChange} className="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
                       </div>
                     </div>
                     
@@ -572,11 +579,19 @@
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-xs text-slate-500 mb-1">開始時間</label>
-                          <input type="time" name="tableClothStartTime" value={formData.tableClothStartTime} onChange={handleInputChange} className="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
+                          {/* 檯布開始時間，拼接到 tableCloth 變數的左邊 */}
+                          <input type="time" value={tcStart} onChange={(e) => {
+                             const val = e.target.value;
+                             setFormData(prev => ({ ...prev, tableCloth: val || tcEnd ? `${val}~${tcEnd}` : '' }));
+                          }} className="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
                         </div>
                         <div>
                           <label className="block text-xs text-slate-500 mb-1">結束時間</label>
-                          <input type="time" name="tableClothEndTime" value={formData.tableClothEndTime} onChange={handleInputChange} className="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
+                          {/* 檯布結束時間，拼接到 tableCloth 變數的右邊 */}
+                          <input type="time" value={tcEnd} onChange={(e) => {
+                             const val = e.target.value;
+                             setFormData(prev => ({ ...prev, tableCloth: tcStart || val ? `${tcStart}~${val}` : '' }));
+                          }} className="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
                         </div>
                       </div>
                     </div>
@@ -605,7 +620,7 @@
          } else if (activeMachine === '撐開機') {
             return (
                <>
-                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">時間(開/關)</th>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">整機時間(開/關)</th>
                  <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 border-l border-slate-200 bg-purple-50 text-center">1號機</th>
                  <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 bg-purple-50 text-center">2號機</th>
                  <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 bg-purple-50 text-center">3號機</th>
@@ -646,6 +661,10 @@
                </>
             );
          } else if (activeMachine === '撐開機') {
+            const tcParts = (record.tableCloth || '').split('~');
+            const recTcStart = tcParts[0] || '';
+            const recTcEnd = tcParts.length > 1 ? tcParts[1] : '';
+
             return (
                <>
                   <td className="px-2 md:px-4 py-4 whitespace-nowrap">
@@ -660,12 +679,12 @@
                   <td className="px-2 md:px-4 py-4 whitespace-nowrap text-center font-bold text-xl text-purple-700 bg-purple-50/30">{record.totalQty || '-'}</td>
                   
                   <td className="px-2 md:px-4 py-2 whitespace-nowrap text-center">
-                    {record.bedCoverEndTime ? <div className="text-sm text-red-600 font-medium">關: {record.bedCoverEndTime}</div> : <span className="text-slate-300">-</span>}
+                    {record.bedCover ? <div className="text-sm text-red-600 font-medium">關: {record.bedCover}</div> : <span className="text-slate-300">-</span>}
                   </td>
                   <td className="px-2 md:px-4 py-2 whitespace-nowrap text-center">
-                    {record.tableClothStartTime && <div className="text-sm text-blue-600 font-medium">開: {record.tableClothStartTime}</div>}
-                    {record.tableClothEndTime && <div className="text-sm text-red-600 font-medium mt-0.5">關: {record.tableClothEndTime}</div>}
-                    {!record.tableClothStartTime && !record.tableClothEndTime && <span className="text-slate-300">-</span>}
+                    {recTcStart && <div className="text-sm text-blue-600 font-medium">開: {recTcStart}</div>}
+                    {recTcEnd && <div className="text-sm text-red-600 font-medium mt-0.5">關: {recTcEnd}</div>}
+                    {!recTcStart && !recTcEnd && <span className="text-slate-300">-</span>}
                   </td>
                   
                   <td className="px-2 md:px-4 py-4 whitespace-nowrap">
@@ -812,7 +831,7 @@
                     <input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none font-medium cursor-pointer" />
                   </div>
 
-                  {/* ★ 移除隱藏條件，讓撐開機也能輸入整台機器的開關機時間 */}
+                  {/* 整台機器的開關機時間也保持在畫面上 */}
                   <div className="p-3 bg-blue-50/50 rounded-lg space-y-3 border border-blue-100">
                     <div>
                       <label className="block text-sm font-medium text-blue-900 mb-1">開機時間</label>
