@@ -241,14 +241,13 @@
       const [isGenerating, setIsGenerating] = useState(false);
       const [toastMessage, setToastMessage] = useState('');
 
-      // ★ 移除 床被和檯布 的數量欄位
       const defaultForm = { 
           date: getLocalISODate(), 
-          flatQty: '', pillowQty: '', // ICC平燙機
-          qty: '', // TF-30K, TB-60K, TB-80K (單一數量)
-          machine1: '', machine2: '', machine3: '', machine4: '', // 撐開機
-          workerCount: '', totalQty: '', // 撐開機
-          bedCoverEndTime: '', tableClothStartTime: '', tableClothEndTime: '', // 撐開機 (只記錄時間)
+          flatQty: '', pillowQty: '', 
+          qty: '', 
+          machine1: '', machine2: '', machine3: '', machine4: '', 
+          workerCount: '', totalQty: '', 
+          bedCoverEndTime: '', tableClothStartTime: '', tableClothEndTime: '', 
           onTime: '', offTime: '' 
       };
       const [formData, setFormData] = useState(defaultForm);
@@ -606,6 +605,7 @@
          } else if (activeMachine === '撐開機') {
             return (
                <>
+                 <th className="px-2 md:px-4 py-3 font-bold whitespace-nowrap text-slate-700">時間(開/關)</th>
                  <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 border-l border-slate-200 bg-purple-50 text-center">1號機</th>
                  <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 bg-purple-50 text-center">2號機</th>
                  <th className="px-2 py-3 font-bold whitespace-nowrap text-slate-700 bg-purple-50 text-center">3號機</th>
@@ -648,6 +648,10 @@
          } else if (activeMachine === '撐開機') {
             return (
                <>
+                  <td className="px-2 md:px-4 py-4 whitespace-nowrap">
+                    <div className="text-blue-600 font-bold mb-1">開: {record.onTime || '--:--'}</div>
+                    <div className="text-red-600 font-bold">關: {record.offTime || '--:--'}</div>
+                  </td>
                   <td className="px-2 py-4 whitespace-nowrap border-l border-slate-100 text-center font-medium">{record.machine1 || '-'}</td>
                   <td className="px-2 py-4 whitespace-nowrap text-center font-medium">{record.machine2 || '-'}</td>
                   <td className="px-2 py-4 whitespace-nowrap text-center font-medium">{record.machine3 || '-'}</td>
@@ -808,25 +812,23 @@
                     <input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none font-medium cursor-pointer" />
                   </div>
 
-                  {/* 撐開機隱藏開關機時間，保持畫面乾淨 */}
-                  {(activeMachine !== '撐開機' && (activeMachine !== '總表' || formMachine !== '撐開機')) && (
-                      <div className="p-3 bg-blue-50/50 rounded-lg space-y-3 border border-blue-100">
-                        <div>
-                          <label className="block text-sm font-medium text-blue-900 mb-1">開機時間</label>
-                          <div className="flex gap-2">
-                            <input type="time" name="onTime" value={formData.onTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg outline-none" />
-                            <button type="button" onClick={() => setTimeNow('onTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-blue-900 mb-1">關機時間</label>
-                          <div className="flex gap-2">
-                            <input type="time" name="offTime" value={formData.offTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg outline-none" />
-                            <button type="button" onClick={() => setTimeNow('offTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
-                          </div>
-                        </div>
+                  {/* ★ 移除隱藏條件，讓撐開機也能輸入整台機器的開關機時間 */}
+                  <div className="p-3 bg-blue-50/50 rounded-lg space-y-3 border border-blue-100">
+                    <div>
+                      <label className="block text-sm font-medium text-blue-900 mb-1">開機時間</label>
+                      <div className="flex gap-2">
+                        <input type="time" name="onTime" value={formData.onTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg outline-none" />
+                        <button type="button" onClick={() => setTimeNow('onTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
                       </div>
-                  )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-blue-900 mb-1">關機時間</label>
+                      <div className="flex gap-2">
+                        <input type="time" name="offTime" value={formData.offTime} onChange={handleInputChange} className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg outline-none" />
+                        <button type="button" onClick={() => setTimeNow('offTime')} className="px-3 py-2 bg-blue-600 text-white font-medium rounded-lg shadow-sm flex items-center gap-1"><Icon name="Clock" size={16} /> 現在</button>
+                      </div>
+                    </div>
+                  </div>
 
                   {renderFormFields()}
 
@@ -877,7 +879,7 @@
                               </tr>
                             ))}
                             {sortedCurrentMonthRecords.length === 0 && (
-                              <tr><td colSpan="11" className="px-4 py-12 text-center text-slate-500 text-lg">本月目前還沒有紀錄資料</td></tr>
+                              <tr><td colSpan="12" className="px-4 py-12 text-center text-slate-500 text-lg">本月目前還沒有紀錄資料</td></tr>
                             )}
                           </tbody>
                         </table>
