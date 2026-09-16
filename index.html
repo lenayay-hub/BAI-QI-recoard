@@ -302,16 +302,30 @@
         if (!appConfig.apiUrl) return;
         setIsFetching(true);
         try {
-          // 【關鍵修改】在網址後面加上時間戳 (?t=隨機數字)，強迫手機每次都抓最新資料
           const cacheBusterUrl = `${appConfig.apiUrl}${appConfig.apiUrl.includes('?') ? '&' : '?'}t=${new Date().getTime()}`;
           
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); 
+
           const response = await fetch(cacheBusterUrl, { 
-            cache: 'no-store',
-            redirect: 'follow'
+            method: 'GET',
+            redirect: 'follow',
+            signal: controller.signal,
+            headers: {
+              'Accept': 'application/json'
+            }
           });
           
+          clearTimeout(timeoutId);
+
           if (!response.ok) throw new Error('網路回應錯誤');
-          const data = await response.json();
+          const textData = await response.text();
+          
+          if (textData.includes('<!DOCTYPE html>')) {
+              throw new Error('權限錯誤或遇到登入攔截');
+          }
+
+          const data = JSON.parse(textData);
           if (Array.isArray(data)) {
             setRecords(data);
             saveLocalRecords(data); 
@@ -319,7 +333,11 @@
           }
         } catch (error) {
           console.error("Fetch Error:", error);
-          showToast(`抓取資料失敗，顯示本機快取`);
+          if (error.name === 'AbortError') {
+             showToast(`網路連線超時，顯示本機快取`);
+          } else {
+             showToast(`抓取資料失敗，顯示本機快取`);
+          }
           loadLocalRecords(); 
         } finally {
           setIsFetching(false);
@@ -330,22 +348,35 @@
         if (!appConfig.apiUrl) return false;
         try {
           const bodyData = JSON.stringify({ action: action, ...payload });
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+
           const response = await fetch(appConfig.apiUrl, {
-            method: 'POST', body: bodyData, redirect: 'follow' 
+            method: 'POST', 
+            body: bodyData, 
+            redirect: 'follow',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            }
           });
+          
+          clearTimeout(timeoutId);
+          
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           
           const textData = await response.text();
           let responseData = JSON.parse(textData);
 
           if (responseData.status === 'success') {
-             // 上傳成功後不呼叫重新下載，讓畫面變超快
              return true;
           } else {
              showToast(`背景儲存失敗: ${responseData.message}`); return false;
           }
         } catch (error) {
-          showToast(`背景傳送失敗，保留於本機`); return false;
+          console.error("Upload Error:", error);
+          showToast(`背景傳送失敗，暫存於本機`); return false;
         }
       };
 
