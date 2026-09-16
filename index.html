@@ -332,7 +332,8 @@
           let responseData = JSON.parse(textData);
 
           if (responseData.status === 'success') {
-             fetchCloudRecords(); return true;
+             // 這裡修正了：原本上傳成功後還會重新下載全部資料（fetchCloudRecords()），現在直接回傳成功，省下大量載入時間
+             return true;
           } else {
              showToast(`背景儲存失敗: ${responseData.message}`); return false;
           }
