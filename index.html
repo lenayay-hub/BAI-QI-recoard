@@ -297,7 +297,7 @@
         setRecords(newRecords);
       };
 
-      // 🌟 最終殺手鐧：使用 XHR 來讀取資料，時間放寬到 20 秒
+      // 🌟 已更新為 fetch 版本：解決 Safari ITP 阻擋問題
       const fetchCloudRecords = async () => {
         if (!appConfig.apiUrl) return;
         setIsFetching(true);
@@ -305,34 +305,24 @@
         try {
           const cacheBusterUrl = `${appConfig.apiUrl}${appConfig.apiUrl.includes('?') ? '&' : '?'}t=${new Date().getTime()}`;
           
-          const data = await new Promise((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.open('GET', cacheBusterUrl, true);
-              xhr.timeout = 20000; // 允許 Safari 慢慢跑 20 秒
-              
-              xhr.onload = function() {
-                  if (xhr.status >= 200 && xhr.status < 300) {
-                      const textData = xhr.responseText;
-                      if (textData.includes('<!DOCTYPE html>')) {
-                          reject(new Error('遇到 Google 登入攔截'));
-                      } else {
-                          try {
-                              resolve(JSON.parse(textData));
-                          } catch(e) {
-                              reject(new Error('資料解析失敗'));
-                          }
-                      }
-                  } else {
-                      reject(new Error('伺服器回應錯誤: ' + xhr.status));
-                  }
-              };
-              
-              xhr.onerror = function() { reject(new Error('網路連線失敗')); };
-              xhr.ontimeout = function() { reject(new Error('連線超時')); };
-              
-              xhr.send();
+          const response = await fetch(cacheBusterUrl, {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit', // 🌟 關鍵：強制不帶 Cookie
+            redirect: 'follow'   // 🌟 關鍵：允許跟隨 GAS 的重新導向
           });
 
+          if (!response.ok) {
+            throw new Error(`伺服器回應錯誤: ${response.status}`);
+          }
+
+          const textData = await response.text();
+          
+          if (textData.includes('<!DOCTYPE html>')) {
+            throw new Error('遇到 Google 登入攔截');
+          } 
+          
+          const data = JSON.parse(textData);
           if (Array.isArray(data)) {
             setRecords(data);
             saveLocalRecords(data); 
@@ -340,8 +330,8 @@
           }
         } catch (error) {
             console.error("Fetch Error:", error);
-            if (error.message === '連線超時') {
-               showToast(`蘋果 Safari 載入超時，暫時顯示本機快取`);
+            if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+               showToast(`蘋果 Safari 連線受阻，暫時顯示本機快取`);
             } else {
                showToast(`抓取失敗: ${error.message}`);
             }
@@ -351,41 +341,34 @@
         }
       };
 
-      // 🌟 最終殺手鐧：使用 XHR 來上傳資料，確保不會被阻擋
+      // 🌟 已更新為 fetch 版本：解決 Safari ITP 阻擋問題
       const sendToCloud = async (action, payload) => {
         if (!appConfig.apiUrl) return false;
         try {
           const bodyData = JSON.stringify({ action: action, ...payload });
           
-          return await new Promise((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.open('POST', appConfig.apiUrl, true);
-              xhr.setRequestHeader('Content-Type', 'text/plain');
-              xhr.timeout = 20000; // 上傳也給 20 秒
-              
-              xhr.onload = function() {
-                  if (xhr.status >= 200 && xhr.status < 300) {
-                      try {
-                          const responseData = JSON.parse(xhr.responseText);
-                          if (responseData.status === 'success') {
-                              resolve(true);
-                          } else {
-                              showToast(`背景儲存失敗: ${responseData.message}`);
-                              resolve(false);
-                          }
-                      } catch(e) {
-                          resolve(false);
-                      }
-                  } else {
-                      reject(new Error('伺服器回應錯誤'));
-                  }
-              };
-              
-              xhr.onerror = function() { reject(new Error('網路連線失敗')); };
-              xhr.ontimeout = function() { reject(new Error('連線超時')); };
-              
-              xhr.send(bodyData);
+          const response = await fetch(appConfig.apiUrl, {
+            method: 'POST',
+            mode: 'cors',
+            credentials: 'omit', // 🌟 關鍵：強制不帶 Cookie
+            redirect: 'follow',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8', // 🌟 關鍵：使用 text/plain 避免觸發預檢請求 (Preflight)
+            },
+            body: bodyData
           });
+
+          if (!response.ok) {
+            throw new Error('伺服器回應錯誤');
+          }
+
+          const responseData = await response.json();
+          if (responseData.status === 'success') {
+              return true;
+          } else {
+              showToast(`背景儲存失敗: ${responseData.message}`);
+              return false;
+          }
         } catch (error) {
           console.error("Upload Error:", error);
           showToast(`背景傳送失敗，已安全暫存於本機`); 
