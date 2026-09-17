@@ -241,7 +241,6 @@
       const [isGenerating, setIsGenerating] = useState(false);
       const [toastMessage, setToastMessage] = useState('');
 
-      // 表單資料結構
       const defaultForm = { 
           date: getLocalISODate(), 
           flatQty: '', pillowQty: '', 
@@ -298,86 +297,99 @@
         setRecords(newRecords);
       };
 
-      // 🍎 蘋果 Safari 終極解藥：修正 GET 請求
+      // 🌟 最終殺手鐧：使用 XHR 來讀取資料，時間放寬到 20 秒
       const fetchCloudRecords = async () => {
         if (!appConfig.apiUrl) return;
         setIsFetching(true);
+        
         try {
           const cacheBusterUrl = `${appConfig.apiUrl}${appConfig.apiUrl.includes('?') ? '&' : '?'}t=${new Date().getTime()}`;
           
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); 
-
-          const response = await fetch(cacheBusterUrl, { 
-            method: 'GET',
-            redirect: 'follow',
-            credentials: 'omit', // 蘋果 Safari 放行關鍵指令
-            signal: controller.signal
+          const data = await new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open('GET', cacheBusterUrl, true);
+              xhr.timeout = 20000; // 允許 Safari 慢慢跑 20 秒
+              
+              xhr.onload = function() {
+                  if (xhr.status >= 200 && xhr.status < 300) {
+                      const textData = xhr.responseText;
+                      if (textData.includes('<!DOCTYPE html>')) {
+                          reject(new Error('遇到 Google 登入攔截'));
+                      } else {
+                          try {
+                              resolve(JSON.parse(textData));
+                          } catch(e) {
+                              reject(new Error('資料解析失敗'));
+                          }
+                      }
+                  } else {
+                      reject(new Error('伺服器回應錯誤: ' + xhr.status));
+                  }
+              };
+              
+              xhr.onerror = function() { reject(new Error('網路連線失敗')); };
+              xhr.ontimeout = function() { reject(new Error('連線超時')); };
+              
+              xhr.send();
           });
-          
-          clearTimeout(timeoutId);
 
-          if (!response.ok) throw new Error('網路回應錯誤');
-          const textData = await response.text();
-          
-          if (textData.includes('<!DOCTYPE html>')) {
-              throw new Error('權限錯誤或遇到登入攔截');
-          }
-
-          const data = JSON.parse(textData);
           if (Array.isArray(data)) {
             setRecords(data);
             saveLocalRecords(data); 
             showToast("已取得最新雲端紀錄");
           }
         } catch (error) {
-          console.error("Fetch Error:", error);
-          if (error.name === 'AbortError') {
-             showToast(`網路連線超時，顯示本機快取`);
-          } else {
-             showToast(`抓取資料失敗，顯示本機快取`);
-          }
-          loadLocalRecords(); 
+            console.error("Fetch Error:", error);
+            if (error.message === '連線超時') {
+               showToast(`蘋果 Safari 載入超時，暫時顯示本機快取`);
+            } else {
+               showToast(`抓取失敗: ${error.message}`);
+            }
+            loadLocalRecords(); 
         } finally {
-          setIsFetching(false);
+            setIsFetching(false);
         }
       };
 
-      // 🍎 蘋果 Safari 終極解藥：修正 POST 請求
+      // 🌟 最終殺手鐧：使用 XHR 來上傳資料，確保不會被阻擋
       const sendToCloud = async (action, payload) => {
         if (!appConfig.apiUrl) return false;
         try {
           const bodyData = JSON.stringify({ action: action, ...payload });
           
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-          const response = await fetch(appConfig.apiUrl, {
-            method: 'POST', 
-            body: bodyData, 
-            redirect: 'follow',
-            credentials: 'omit', // 蘋果 Safari 放行關鍵指令
-            signal: controller.signal,
-            headers: {
-              'Content-Type': 'text/plain'
-            }
+          return await new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open('POST', appConfig.apiUrl, true);
+              xhr.setRequestHeader('Content-Type', 'text/plain');
+              xhr.timeout = 20000; // 上傳也給 20 秒
+              
+              xhr.onload = function() {
+                  if (xhr.status >= 200 && xhr.status < 300) {
+                      try {
+                          const responseData = JSON.parse(xhr.responseText);
+                          if (responseData.status === 'success') {
+                              resolve(true);
+                          } else {
+                              showToast(`背景儲存失敗: ${responseData.message}`);
+                              resolve(false);
+                          }
+                      } catch(e) {
+                          resolve(false);
+                      }
+                  } else {
+                      reject(new Error('伺服器回應錯誤'));
+                  }
+              };
+              
+              xhr.onerror = function() { reject(new Error('網路連線失敗')); };
+              xhr.ontimeout = function() { reject(new Error('連線超時')); };
+              
+              xhr.send(bodyData);
           });
-          
-          clearTimeout(timeoutId);
-          
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          
-          const textData = await response.text();
-          let responseData = JSON.parse(textData);
-
-          if (responseData.status === 'success') {
-             return true;
-          } else {
-             showToast(`背景儲存失敗: ${responseData.message}`); return false;
-          }
         } catch (error) {
           console.error("Upload Error:", error);
-          showToast(`背景傳送失敗，暫存於本機`); return false;
+          showToast(`背景傳送失敗，已安全暫存於本機`); 
+          return false;
         }
       };
 
@@ -390,7 +402,6 @@
         setFormData(prev => ({ ...prev, [field]: getCurrentTimeString() }));
       };
 
-      // 儲存邏輯：將時間無縫打包成 GAS 試算表認得的 bedCover 與 tableCloth
       const handleSubmit = (e) => {
         e.preventDefault();
         if (!formData.date) { showToast("請選擇日期！"); return; }
@@ -398,7 +409,6 @@
         const newId = editingId ? editingId : Date.now().toString();
         const targetMachine = activeMachine === '總表' ? formMachine : activeMachine;
         
-        // 自動包裝時間字串
         const bEndTime = formData.bedCover || formData.bedCoverEndTime || '';
         const tcStart = formData.tableClothStartTime || '';
         const tcEnd = formData.tableClothEndTime || '';
@@ -438,7 +448,6 @@
         }
       };
 
-      // 編輯邏輯：將試算表的 bedCover / tableCloth 解包回開始與結束時間
       const handleEdit = (record) => {
         const bEnd = record.bedCoverEndTime || record.bedCover || '';
         let tcStart = record.tableClothStartTime || '';
@@ -635,7 +644,6 @@
                     </div>
                  </div>
                  
-                 {/* 床被與檯布時間輸入 */}
                  <div className="space-y-3 mt-3 border-t border-purple-200 pt-3">
                     <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-sm">
                       <label className="block text-sm font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">床被</label>
@@ -758,7 +766,6 @@
                </>
             );
          } else if (activeMachine === '撐開機') {
-            // 解析床被與檯布時間
             const bEnd = record.bedCoverEndTime || record.bedCover || '';
             let tcStart = record.tableClothStartTime || '';
             let tcEnd = record.tableClothEndTime || '';
@@ -902,7 +909,6 @@
 
             <div className={`grid grid-cols-1 ${activeMachine === '總表' ? '' : 'xl:grid-cols-4'} gap-4 md:gap-6`}>
               
-              {/* Form Sidebar */}
               <div className={`${activeMachine === '總表' ? 'hidden' : 'xl:col-span-1'} bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 border-t-4 border-t-blue-500 relative`}>
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-bold flex items-center gap-2 text-blue-800">
@@ -934,7 +940,6 @@
                     <input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none font-medium cursor-pointer" />
                   </div>
 
-                  {/* 整機開關機時間 */}
                   <div className="p-3 bg-blue-50/50 rounded-lg space-y-3 border border-blue-100">
                     <div>
                       <label className="block text-sm font-medium text-blue-900 mb-1">開機時間</label>
@@ -968,7 +973,6 @@
                 </form>
               </div>
 
-              {/* Table Data */}
               {activeMachine !== '總表' && (
                   <div className="xl:col-span-3 relative">
                     {isFetching && <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center rounded-xl"></div>}
@@ -1011,7 +1015,6 @@
                   </div>
               )}
 
-              {/* Table Data - 總表 */}
               {activeMachine === '總表' && (
                   <div className="relative w-full overflow-x-auto">
                     {isFetching && <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center rounded-xl"></div>}
