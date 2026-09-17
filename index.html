@@ -298,6 +298,7 @@
         setRecords(newRecords);
       };
 
+      // 🍎 蘋果 Safari 終極解藥：修正 GET 請求
       const fetchCloudRecords = async () => {
         if (!appConfig.apiUrl) return;
         setIsFetching(true);
@@ -310,10 +311,8 @@
           const response = await fetch(cacheBusterUrl, { 
             method: 'GET',
             redirect: 'follow',
-            signal: controller.signal,
-            headers: {
-              'Accept': 'application/json'
-            }
+            credentials: 'omit', // 蘋果 Safari 放行關鍵指令
+            signal: controller.signal
           });
           
           clearTimeout(timeoutId);
@@ -344,6 +343,7 @@
         }
       };
 
+      // 🍎 蘋果 Safari 終極解藥：修正 POST 請求
       const sendToCloud = async (action, payload) => {
         if (!appConfig.apiUrl) return false;
         try {
@@ -356,9 +356,10 @@
             method: 'POST', 
             body: bodyData, 
             redirect: 'follow',
+            credentials: 'omit', // 蘋果 Safari 放行關鍵指令
             signal: controller.signal,
             headers: {
-              'Content-Type': 'text/plain;charset=utf-8'
+              'Content-Type': 'text/plain'
             }
           });
           
