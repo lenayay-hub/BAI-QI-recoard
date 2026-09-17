@@ -297,32 +297,36 @@
         setRecords(newRecords);
       };
 
-      // 🌟 已更新為 fetch 版本：解決 Safari ITP 阻擋問題
+      // 🌟 使用現代 fetch 搭配 AbortController 解決 Safari CORS 與重定向問題
       const fetchCloudRecords = async () => {
         if (!appConfig.apiUrl) return;
         setIsFetching(true);
+        
+        // 設定 20 秒超時機制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
         
         try {
           const cacheBusterUrl = `${appConfig.apiUrl}${appConfig.apiUrl.includes('?') ? '&' : '?'}t=${new Date().getTime()}`;
           
           const response = await fetch(cacheBusterUrl, {
             method: 'GET',
-            mode: 'cors',
-            credentials: 'omit', // 🌟 關鍵：強制不帶 Cookie
-            redirect: 'follow'   // 🌟 關鍵：允許跟隨 GAS 的重新導向
+            redirect: 'follow', // 關鍵：讓 Safari 自動跟隨 GAS 的 302 重定向
+            signal: controller.signal
           });
 
           if (!response.ok) {
-            throw new Error(`伺服器回應錯誤: ${response.status}`);
+             throw new Error(`伺服器回應錯誤: ${response.status}`);
           }
-
+          
           const textData = await response.text();
           
           if (textData.includes('<!DOCTYPE html>')) {
-            throw new Error('遇到 Google 登入攔截');
-          } 
+             throw new Error('遇到 Google 登入攔截或無權限存取');
+          }
           
           const data = JSON.parse(textData);
+
           if (Array.isArray(data)) {
             setRecords(data);
             saveLocalRecords(data); 
@@ -330,49 +334,60 @@
           }
         } catch (error) {
             console.error("Fetch Error:", error);
-            if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-               showToast(`蘋果 Safari 連線受阻，暫時顯示本機快取`);
+            if (error.name === 'AbortError') {
+               showToast(`蘋果 Safari 載入超時，暫時顯示本機快取`);
             } else {
                showToast(`抓取失敗: ${error.message}`);
             }
             loadLocalRecords(); 
         } finally {
+            clearTimeout(timeoutId);
             setIsFetching(false);
         }
       };
 
-      // 🌟 已更新為 fetch 版本：解決 Safari ITP 阻擋問題
+      // 🌟 使用 fetch 並改為 text/plain 避免 Safari 預檢請求 (OPTIONS) 失敗
       const sendToCloud = async (action, payload) => {
         if (!appConfig.apiUrl) return false;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        
         try {
           const bodyData = JSON.stringify({ action: action, ...payload });
           
           const response = await fetch(appConfig.apiUrl, {
             method: 'POST',
-            mode: 'cors',
-            credentials: 'omit', // 🌟 關鍵：強制不帶 Cookie
-            redirect: 'follow',
+            redirect: 'follow', // 關鍵：跟隨重定向
             headers: {
-              'Content-Type': 'text/plain;charset=utf-8', // 🌟 關鍵：使用 text/plain 避免觸發預檢請求 (Preflight)
+              'Content-Type': 'text/plain;charset=utf-8', // 騙過瀏覽器，不發 OPTIONS 預檢
             },
-            body: bodyData
+            body: bodyData,
+            signal: controller.signal
           });
 
           if (!response.ok) {
-            throw new Error('伺服器回應錯誤');
+             throw new Error(`伺服器回應錯誤: ${response.status}`);
           }
-
+          
           const responseData = await response.json();
+          
           if (responseData.status === 'success') {
-              return true;
+             return true;
           } else {
-              showToast(`背景儲存失敗: ${responseData.message}`);
-              return false;
+             showToast(`背景儲存失敗: ${responseData.message}`);
+             return false;
           }
         } catch (error) {
           console.error("Upload Error:", error);
-          showToast(`背景傳送失敗，已安全暫存於本機`); 
+          if (error.name === 'AbortError') {
+             showToast(`背景傳送超時，已安全暫存於本機`); 
+          } else {
+             showToast(`背景傳送失敗，已安全暫存於本機`); 
+          }
           return false;
+        } finally {
+          clearTimeout(timeoutId);
         }
       };
 
