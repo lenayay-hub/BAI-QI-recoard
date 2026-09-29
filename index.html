@@ -255,9 +255,50 @@
       });
 
       const [showSettings, setShowSettings] = useState(false);
-      const [records, setRecords] = useState([]);
+      const [records, setRecords] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('machineRecords_local_v3') || '[]'); } catch (_) { return []; }
+      });
       const [isFetching, setIsFetching] = useState(false);
       const [isSyncing, setIsSyncing] = useState(false);
+      const [pendingOps, setPendingOps] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('machinePendingOps_v1') || '[]'); }
+        catch (_) { return []; }
+      });
+      const pendingRef = useRef(pendingOps);
+      const syncLock = useRef(false);
+      const activeOpRef = useRef(null);
+      const recordsRef = useRef(records);
+      const savePending = (ops) => {
+        pendingRef.current = ops;
+        localStorage.setItem('machinePendingOps_v1', JSON.stringify(ops));
+        setPendingOps(ops);
+      };
+      const queueOperation = (action, payload) => {
+        // 保留同一筆紀錄最後的操作，避免離線期間新增又修改產生多次寫入。
+        const id = action === 'delete' ? payload.id : payload.record.id;
+        const older = pendingRef.current.find(op => op.id === id);
+        const remaining = pendingRef.current.filter(op => op.id !== id || op.key === activeOpRef.current);
+        if (older && older.key !== activeOpRef.current && older.action === 'create' && action === 'delete') {
+          savePending(remaining);
+          return;
+        }
+        const finalAction = older && older.key !== activeOpRef.current && older.action === 'create' ? 'create' : action;
+        savePending([...remaining, { id, action: finalAction, payload, key: String(Date.now()) + ':' + Math.random() }]);
+      };
+      const mergePending = (cloud) => {
+        const merged = new Map(cloud.map(r => [String(r.id), r]));
+        pendingRef.current.forEach(op => {
+          if (op.action === 'delete') merged.delete(String(op.id));
+          else {
+            const record = op.payload.record;
+            for (const [key, prior] of merged) {
+              if (prior.date === record.date && (prior.machine || 'ICC平燙機') === (record.machine || 'ICC平燙機')) merged.delete(key);
+            }
+            merged.set(String(op.id), record);
+          }
+        });
+        return Array.from(merged.values());
+      };
       const [isGenerating, setIsGenerating] = useState(false);
       const [toastMessage, setToastMessage] = useState('');
 
@@ -307,13 +348,15 @@
       const loadLocalRecords = () => {
         try {
           const saved = localStorage.getItem('machineRecords_local_v3');
-          if (saved) setRecords(JSON.parse(saved));
-          else setRecords([]);
+          const local = saved ? JSON.parse(saved) : [];
+          recordsRef.current = local;
+          setRecords(local);
         } catch (e) {}
       };
 
       const saveLocalRecords = (newRecords) => {
         localStorage.setItem('machineRecords_local_v3', JSON.stringify(newRecords));
+        recordsRef.current = newRecords;
         setRecords(newRecords);
       };
 
@@ -333,11 +376,12 @@
           if (textData.includes('<!DOCTYPE html>')) throw new Error('遇到 Google 登入攔截或無權限存取');
           
           const data = JSON.parse(textData);
+          if (!Array.isArray(data)) throw new Error(data.message || '雲端資料格式錯誤');
 
           if (Array.isArray(data)) {
-            setRecords(data);
-            saveLocalRecords(data); 
-            showToast("已取得最新雲端紀錄");
+            saveLocalRecords(mergePending(data)); 
+            showToast(pendingRef.current.length ? '已更新雲端資料；待同步紀錄仍保留' : '已取得最新雲端紀錄');
+            if (pendingRef.current.length) syncPending();
           }
         } catch (error) {
             console.error("Fetch Error:", error);
@@ -381,6 +425,34 @@
         }
       };
 
+      const syncPending = async () => {
+        if (syncLock.current || !appConfig.apiUrl || !navigator.onLine) return;
+        syncLock.current = true;
+        setIsSyncing(true);
+        try {
+          while (pendingRef.current.length) {
+            const op = pendingRef.current[0];
+            activeOpRef.current = op.key;
+            const ok = await sendToCloud(op.action, op.payload);
+            activeOpRef.current = null;
+            if (!ok) break;
+            // 若送出期間使用者再次編輯同一筆，不移除較新的操作。
+            savePending(pendingRef.current.filter(item => item.key !== op.key));
+          }
+          if (!pendingRef.current.length) { showToast('✓ 雲端同步完成'); fetchCloudRecords(); }
+        } finally {
+          activeOpRef.current = null;
+          syncLock.current = false;
+          setIsSyncing(false);
+        }
+      };
+
+      useEffect(() => {
+        const onOnline = () => syncPending();
+        window.addEventListener('online', onOnline);
+        return () => window.removeEventListener('online', onOnline);
+      }, [appConfig]);
+
       const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -394,8 +466,10 @@
         e.preventDefault();
         if (!formData.date) { showToast("請選擇日期！"); return; }
 
-        const newId = editingId ? editingId : Date.now().toString();
         const targetMachine = activeMachine === '總表' ? formMachine : activeMachine;
+        const sameDay = recordsRef.current.find(r => r.date === formData.date &&
+          (r.machine === 'ICC' ? 'ICC平燙機' : (r.machine || 'ICC平燙機')) === targetMachine);
+        const newId = editingId || (sameDay && sameDay.id) || Date.now().toString();
         
         const bEndTime = formData.bedCover || formData.bedCoverEndTime || '';
         const tcStart = formData.tableClothStartTime || '';
@@ -409,19 +483,16 @@
           tableClothStartTime: tcStart, tableClothEndTime: tcEnd
         };
 
-        let updatedRecords = editingId ? records.map(r => r.id === editingId ? recordToSave : r) : [...records, recordToSave];
+        let updatedRecords = recordsRef.current.filter(r => r.id !== newId &&
+          !(r.date === formData.date && (r.machine === 'ICC' ? 'ICC平燙機' : (r.machine || 'ICC平燙機')) === targetMachine));
+        updatedRecords.push(recordToSave);
 
-        setRecords(updatedRecords); saveLocalRecords(updatedRecords); 
+        saveLocalRecords(updatedRecords); 
         setEditingId(null); setFormData({ ...defaultForm, date: getLocalISODate() }); setSignature(null);
-        showToast("已暫存，背景上傳中...");
+        showToast("已存於本機，等待雲端確認...");
 
-        if (appConfig.mode === 'api' && appConfig.apiUrl) {
-           setIsSyncing(true);
-           sendToCloud(editingId ? 'update' : 'create', { record: recordToSave }).then(success => {
-               if (success) showToast("✓ 雲端同步完成");
-               setIsSyncing(false);
-           });
-        }
+        queueOperation(editingId || sameDay ? 'update' : 'create', { record: recordToSave });
+        syncPending();
       };
 
       const handleEdit = (record) => {
@@ -450,15 +521,11 @@
 
       const handleDelete = (id) => {
         if(window.confirm('確定要刪除這筆紀錄嗎？')) {
-          const updatedRecords = records.filter(record => record.id !== id);
-          setRecords(updatedRecords); saveLocalRecords(updatedRecords);
+          const updatedRecords = recordsRef.current.filter(record => record.id !== id);
+          saveLocalRecords(updatedRecords);
 
-          if (appConfig.mode === 'api' && appConfig.apiUrl) {
-             setIsSyncing(true);
-             sendToCloud('delete', { id: id }).then(success => {
-                if(success) showToast("✓ 雲端已刪除"); setIsSyncing(false);
-             });
-          }
+          queueOperation('delete', { id });
+          syncPending();
         }
       };
 
@@ -730,7 +797,7 @@
                   <h1 className="text-xl md:text-2xl font-bold text-slate-800">{activeMachine} 日誌</h1>
                   <div className="flex items-center gap-2 mt-1">
                     {appConfig.mode === 'api' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">{isSyncing ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="Cloud" size={12} />} 同步中</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">{isSyncing ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="Cloud" size={12} />} {isSyncing ? '同步中' : pendingOps.length ? `待同步 ${pendingOps.length} 筆` : '無待同步資料'}</span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600"><Icon name="CloudOff" size={12} /> 本機模式</span>
                     )}
@@ -739,6 +806,7 @@
               </div>
 
               <div className="flex flex-wrap gap-2">
+                {pendingOps.length > 0 && <button onClick={syncPending} disabled={isSyncing} className="bg-amber-100 text-amber-900 px-3 py-2.5 rounded-lg font-bold">重試同步（{pendingOps.length}）</button>}
                 {appConfig.mode === 'api' && (<button onClick={fetchCloudRecords} disabled={isFetching} className="flex items-center gap-1 bg-blue-50 text-blue-600 px-3 py-2.5 rounded-lg font-bold hover:bg-blue-100"><Icon name="RefreshCw" size={18} className={isFetching ? 'animate-spin' : ''} /> 重整</button>)}
                 <button onClick={() => setShowSettings(true)} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-3 py-2.5 rounded-lg font-bold hover:bg-slate-200"><Icon name="Settings" size={18} /></button>
                 <button onClick={handleShareImage} disabled={isGenerating} className="flex items-center gap-2 bg-[#06C755] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#05b34c] shadow-md active:scale-95">{isGenerating ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="ImageIcon" size={18} />} 分享報表</button>
