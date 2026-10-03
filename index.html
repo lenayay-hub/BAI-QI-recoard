@@ -41,12 +41,12 @@
         Settings: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
         CloudOff: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
         RefreshCw: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
-        PenTool: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+        PenTool: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>,
+        QrCode: <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><rect x="7" y="7" width="3" height="3"/><rect x="14" y="7" width="3" height="3"/><rect x="7" y="14" width="3" height="3"/><path d="M14 14h.01M17 14h.01M14 17h.01M17 17h.01"/></svg>
       };
       return <div className={`inline-block ${className}`}>{icons[name]}</div>;
     };
 
-    // 🌟 新增的優雅降級元件：圖片破圖時自動變成「🔗查看」按鈕
     const SignatureImage = ({ src, imgClass }) => {
       const [imgFailed, setImgFailed] = useState(false);
       
@@ -55,7 +55,7 @@
       if (imgFailed) {
          return (
             <a href={src} target="_blank" rel="noreferrer" className="inline-flex items-center text-blue-600 bg-blue-50 px-2 py-1.5 rounded text-sm font-bold border border-blue-200 hover:bg-blue-100 whitespace-nowrap shadow-sm transition-colors">
-               🔗 查看
+                🔗 查看
             </a>
          );
       }
@@ -241,6 +241,14 @@
       // 【請記得在此處貼上最新的 GAS URL】
       const MY_GAS_URL = "https://script.google.com/macros/s/AKfycbxQv1Wo4bTPhetcuvn5gWaNNhzaGgMh-mOQzlTLf1lwS9wR5AUhNTfQKKw4DFIeVNVUKQ/exec";
 
+      const machineList = ['ICC平燙機', 'TF-30K', 'TB-60K', 'TB-80K', '撐開機'];
+
+      // ======== 新增：URL 解析與 QR Code 鎖定邏輯 ========
+      const urlParams = new URLSearchParams(window.location.search);
+      const lockedMachine = urlParams.get('machine');
+      const isLocked = lockedMachine && machineList.includes(lockedMachine);
+      // ====================================================
+
       const [appConfig, setAppConfig] = useState(() => {
         try {
           const saved = localStorage.getItem('machineAppConfig');
@@ -268,13 +276,14 @@
       const syncLock = useRef(false);
       const activeOpRef = useRef(null);
       const recordsRef = useRef(records);
+
       const savePending = (ops) => {
         pendingRef.current = ops;
         localStorage.setItem('machinePendingOps_v1', JSON.stringify(ops));
         setPendingOps(ops);
       };
+
       const queueOperation = (action, payload) => {
-        // 保留同一筆紀錄最後的操作，避免離線期間新增又修改產生多次寫入。
         const id = action === 'delete' ? payload.id : payload.record.id;
         const older = pendingRef.current.find(op => op.id === id);
         const remaining = pendingRef.current.filter(op => op.id !== id || op.key === activeOpRef.current);
@@ -285,6 +294,7 @@
         const finalAction = older && older.key !== activeOpRef.current && older.action === 'create' ? 'create' : action;
         savePending([...remaining, { id, action: finalAction, payload, key: String(Date.now()) + ':' + Math.random() }]);
       };
+
       const mergePending = (cloud) => {
         const merged = new Map(cloud.map(r => [String(r.id), r]));
         pendingRef.current.forEach(op => {
@@ -299,6 +309,7 @@
         });
         return Array.from(merged.values());
       };
+
       const [isGenerating, setIsGenerating] = useState(false);
       const [toastMessage, setToastMessage] = useState('');
 
@@ -320,9 +331,9 @@
       const [showSignaturePad, setShowSignaturePad] = useState(false); 
       const [editingId, setEditingId] = useState(null);
 
-      const machineList = ['ICC平燙機', 'TF-30K', 'TB-60K', 'TB-80K', '撐開機'];
-      const [activeMachine, setActiveMachine] = useState('總表'); 
-      const [formMachine, setFormMachine] = useState(machineList[0]);
+      // 若在鎖定模式下，直接鎖死當前機台
+      const [activeMachine, setActiveMachine] = useState(isLocked ? lockedMachine : '總表'); 
+      const [formMachine, setFormMachine] = useState(isLocked ? lockedMachine : machineList[0]);
 
       const currentMonthPrefix = getLocalISODate().substring(0, 7);
       const currentDisplayMonth = new Date().getMonth() + 1;
@@ -436,7 +447,6 @@
             const ok = await sendToCloud(op.action, op.payload);
             activeOpRef.current = null;
             if (!ok) break;
-            // 若送出期間使用者再次編輯同一筆，不移除較新的操作。
             savePending(pendingRef.current.filter(item => item.key !== op.key));
           }
           if (!pendingRef.current.length) { showToast('✓ 雲端同步完成'); fetchCloudRecords(); }
@@ -775,12 +785,32 @@
 
           {showSettings && (
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Icon name="Cloud" size={24} className="text-blue-500" /> 管理員設定</h3>
-                <div className="space-y-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Icon name="Cloud" size={24} className="text-blue-500" /> 管理員設定與 QR Code</h3>
+                <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">綁定 Google 試算表</label>
                     <input type="text" value={MY_GAS_URL} readOnly className="w-full p-2 border border-slate-200 bg-slate-100 rounded-lg outline-none font-mono text-xs text-slate-500" />
+                  </div>
+                  
+                  <div className="border-t border-slate-200 pt-4">
+                     <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Icon name="QrCode" size={20} /> 現場專屬 QR Code (掃碼後會自動鎖定該機台)</h4>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {machineList.map(m => {
+                           const mUrl = `${window.location.origin}${window.location.pathname}?machine=${encodeURIComponent(m)}`;
+                           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(mUrl)}`;
+                           return (
+                             <div key={m} className="border border-slate-200 p-3 rounded-lg flex gap-4 items-center bg-slate-50">
+                               <img src={qrUrl} alt={m} className="w-20 h-20 bg-white p-1 border border-slate-300 rounded" />
+                               <div className="flex-1 min-w-0">
+                                 <div className="font-bold text-blue-800">{m}</div>
+                                 <div className="text-xs text-slate-400 truncate mt-1">{mUrl}</div>
+                                 <button onClick={() => { navigator.clipboard.writeText(mUrl); showToast('已複製網址'); }} className="mt-2 text-xs bg-white border border-slate-300 px-3 py-1.5 rounded hover:bg-slate-100 font-medium">複製網址</button>
+                               </div>
+                             </div>
+                           )
+                        })}
+                     </div>
                   </div>
                 </div>
                 <button onClick={() => setShowSettings(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><Icon name="X" size={24} /></button>
@@ -794,7 +824,10 @@
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-lg ${appConfig.mode === 'api' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}><Icon name="FileSpreadsheet" size={32} /></div>
                 <div>
-                  <h1 className="text-xl md:text-2xl font-bold text-slate-800">{activeMachine} 日誌</h1>
+                  <h1 className="text-xl md:text-2xl font-bold text-slate-800 flex items-center gap-2">
+                     {activeMachine} 日誌
+                     {isLocked && <span className="inline-flex items-center px-2 py-1 rounded text-sm font-bold bg-purple-100 text-purple-700">🔒 專屬機台鎖定</span>}
+                  </h1>
                   <div className="flex items-center gap-2 mt-1">
                     {appConfig.mode === 'api' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">{isSyncing ? <Icon name="Loader2" size={12} className="animate-spin" /> : <Icon name="Cloud" size={12} />} {isSyncing ? '同步中' : pendingOps.length ? `待同步 ${pendingOps.length} 筆` : '無待同步資料'}</span>
@@ -808,16 +841,25 @@
               <div className="flex flex-wrap gap-2">
                 {pendingOps.length > 0 && <button onClick={syncPending} disabled={isSyncing} className="bg-amber-100 text-amber-900 px-3 py-2.5 rounded-lg font-bold">重試同步（{pendingOps.length}）</button>}
                 {appConfig.mode === 'api' && (<button onClick={fetchCloudRecords} disabled={isFetching} className="flex items-center gap-1 bg-blue-50 text-blue-600 px-3 py-2.5 rounded-lg font-bold hover:bg-blue-100"><Icon name="RefreshCw" size={18} className={isFetching ? 'animate-spin' : ''} /> 重整</button>)}
-                <button onClick={() => setShowSettings(true)} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-3 py-2.5 rounded-lg font-bold hover:bg-slate-200"><Icon name="Settings" size={18} /></button>
-                <button onClick={handleShareImage} disabled={isGenerating} className="flex items-center gap-2 bg-[#06C755] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#05b34c] shadow-md active:scale-95">{isGenerating ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="ImageIcon" size={18} />} 分享報表</button>
+                
+                {/* 鎖定模式下隱藏管理員按鈕，避免現場人員亂點 */}
+                {!isLocked && (
+                   <>
+                     <button onClick={() => setShowSettings(true)} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-3 py-2.5 rounded-lg font-bold hover:bg-slate-200"><Icon name="Settings" size={18} /></button>
+                     <button onClick={handleShareImage} disabled={isGenerating} className="flex items-center gap-2 bg-[#06C755] text-white px-4 py-2.5 rounded-lg font-bold hover:bg-[#05b34c] shadow-md active:scale-95">{isGenerating ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="ImageIcon" size={18} />} 分享報表</button>
+                   </>
+                )}
               </div>
             </header>
 
-            <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide">
-              {['總表', ...machineList].map(machineName => (
-                <button key={machineName} onClick={() => { setActiveMachine(machineName); handleCancelEdit(); }} className={`px-5 py-2.5 rounded-lg font-bold whitespace-nowrap transition-all shadow-sm ${activeMachine === machineName ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{machineName}</button>
-              ))}
-            </div>
+            {/* 若已鎖定，隱藏上方的機器切換選單 */}
+            {!isLocked && (
+               <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide">
+                 {['總表', ...machineList].map(machineName => (
+                   <button key={machineName} onClick={() => { setActiveMachine(machineName); handleCancelEdit(); }} className={`px-5 py-2.5 rounded-lg font-bold whitespace-nowrap transition-all shadow-sm ${activeMachine === machineName ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{machineName}</button>
+                 ))}
+               </div>
+            )}
 
             <div className={`grid grid-cols-1 ${activeMachine === '總表' ? '' : 'xl:grid-cols-4'} gap-4 md:gap-6`}>
               
@@ -828,7 +870,7 @@
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {activeMachine === '總表' && (
+                  {activeMachine === '總表' && !isLocked && (
                     <div><label className="block text-sm font-medium text-slate-700 mb-1">對應機台</label><select value={formMachine} onChange={(e) => setFormMachine(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none font-medium text-blue-800">{machineList.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                   )}
 
